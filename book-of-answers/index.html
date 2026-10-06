@@ -24,8 +24,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .stage {
-  position: relative; min-height: 100%; max-width: 460px; margin: 0 auto; box-sizing: border-box;
-  padding: 0 24px; padding-block: 36px 28px; display: flex; flex-direction: column; gap: 14px; overflow: hidden;
+  position: relative; height: 100%; min-height: 560px; max-width: 460px; margin: 0 auto; box-sizing: border-box;
+  padding: 0 24px; padding-block: clamp(14px, 3.5svh, 36px) clamp(10px, 2.6svh, 28px);
+  display: flex; flex-direction: column; gap: clamp(4px, 1.3svh, 14px); overflow: hidden;
 }
 .veil {
   position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s ease;
@@ -34,26 +35,26 @@ body {
 
 header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; position: relative; z-index: 3; transition: opacity .8s; }
 .title { display: grid; gap: 2px; }
-h1 { margin: 0; font-family: var(--f-brush); font-weight: 400; font-size: 30px; line-height: 1.2; }
+h1 { margin: 0; font-family: var(--f-brush); font-weight: 400; font-size: clamp(24px, 3.6svh, 30px); line-height: 1.2; }
 .date { font-size: 12px; letter-spacing: .32em; color: var(--ink-soft); }
 
 /* sky: back ridge, moon, front ridge */
-.sky { position: relative; height: 300px; margin: -40px -24px 0; pointer-events: none; }
+.sky { position: relative; flex: 1 1 0; min-height: 130px; max-height: 300px; margin: clamp(-40px, -3svh, -8px) -24px 0; pointer-events: none; container-type: size; }
 .sky:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--indigo); outline-offset: 3px; }
 .sky img { position: absolute; pointer-events: none; max-width: none; }
-.ridge-back { left: 110px; top: 4px; width: 340px; opacity: .15; transform: scaleX(-1); transition: opacity 1s, filter 1s; }
-.ridge-front { left: -60px; top: -22px; width: 430px; opacity: .42; transition: opacity 1s, filter 1s; }
-.moon-wrap { position: absolute; right: 28px; top: 4px; width: 112px; height: 112px; transform: translateY(var(--rise, 0px)); }
+.ridge-back { left: calc(50% - 36.3cqh); top: 1.3cqh; width: 113cqh; opacity: .15; transform: scaleX(-1); transition: opacity 1s, filter 1s; }
+.ridge-front { left: calc(50% - 93cqh); top: -7.3cqh; width: 143cqh; opacity: .42; transition: opacity 1s, filter 1s; }
+.moon-wrap { position: absolute; left: calc(50% + 26.3cqh); top: 1.3cqh; width: 37cqh; height: 37cqh; transform: translateY(var(--rise, 0px)); }
 .moon-wrap img { position: static; width: 100%; opacity: .8; }
 .halo { position: absolute; inset: -30%; border-radius: 50%; background: radial-gradient(circle, rgba(255,250,236,.95) 0%, rgba(255,250,236,0) 65%); opacity: 0; transition: opacity .6s; }
 .pulse { position: absolute; inset: 10%; border-radius: 50%; border: 1px solid var(--ink-soft); pointer-events: none; animation: pulse 2s ease-out both; }
 @keyframes pulse { from { opacity: .5; transform: scale(.8); } to { opacity: 0; transform: scale(2.6); } }
-.count { position: absolute; left: 0; right: 0; top: 96px; text-align: center; font-family: var(--f-brush); font-size: 96px; line-height: 1; opacity: 0; pointer-events: none; }
+.count { position: absolute; left: 0; right: 0; top: 32cqh; text-align: center; font-family: var(--f-brush); font-size: 32cqh; line-height: 1; opacity: 0; pointer-events: none; }
 .count.beat { animation: beat 1s ease-in-out both; }
 @keyframes beat { 0% { opacity: 0; transform: scale(.85); filter: blur(6px); } 40% { opacity: .42; transform: scale(1); filter: blur(0); } 100% { opacity: 0; transform: scale(1.12); filter: blur(4px); } }
 
 /* the answer */
-.answer-row { position: relative; display: flex; align-items: flex-end; gap: 12px; min-height: 130px; z-index: 2; }
+.answer-row { position: relative; flex: none; display: flex; align-items: flex-end; gap: 12px; min-height: clamp(80px, 14svh, 130px); z-index: 2; }
 .bloom { position: absolute; left: -10px; top: -40px; width: 260px; opacity: 0; pointer-events: none; }
 .bloom.go { animation: bloom 2.4s cubic-bezier(.15,.7,.25,1) both; }
 @keyframes bloom { 0% { opacity: 0; transform: scale(.3) rotate(-18deg); filter: blur(14px); } 35% { opacity: .14; } 100% { opacity: .07; transform: scale(1) rotate(0); filter: blur(0); } }
@@ -69,17 +70,17 @@ h1 { margin: 0; font-family: var(--f-brush); font-weight: 400; font-size: 30px; 
 .seal span { position: relative; font-size: 12px; font-weight: 500; line-height: 1.05; color: #fbf3e6; text-align: center; max-width: 34px; }
 .seal.stamp { animation: stamp .5s cubic-bezier(.2,.9,.3,1.3) both; }
 @keyframes stamp { 0% { transform: scale(1.9) rotate(-16deg); opacity: 0; } 60% { transform: scale(.92) rotate(-3deg); opacity: 1; } 100% { transform: scale(1) rotate(-4deg); opacity: 1; } }
-.note { margin: 0; font-size: 14px; line-height: 1.9; color: var(--ink-soft); font-weight: 300; min-height: 1.9em; overflow-wrap: anywhere; transition: opacity .8s; }
+.note { margin: 0; flex: none; font-size: clamp(12.5px, 1.8svh, 14px); line-height: 1.8; color: var(--ink-soft); font-weight: 300; min-height: 1.9em; overflow-wrap: anywhere; transition: opacity .8s; }
 .note.hide { opacity: 0; }
 .hint { margin: 0; font-size: 13px; letter-spacing: .2em; color: var(--ink-soft); min-height: 1.7em; }
 
-.guide { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; color: var(--ink-soft); transition: opacity .8s; }
+.guide { margin: 0; padding: 0; list-style: none; display: grid; gap: clamp(0px, .5svh, 4px); flex: none; font-size: clamp(11.5px, 1.75svh, 13px); line-height: 1.6; color: var(--ink-soft); transition: opacity .8s; }
 .guide li { display: flex; gap: 10px; align-items: baseline; }
 .guide b { font-family: var(--f-brush); font-weight: 400; font-size: 17px; color: var(--ink); width: 1.2em; flex: none; }
 .guide.hide { opacity: 0; }
-.press { margin-top: auto; display: grid; justify-items: center; gap: 6px; position: relative; }
+.press { flex: none; display: grid; justify-items: center; gap: clamp(2px, .7svh, 6px); position: relative; }
 .ring {
-  width: 124px; height: 124px; position: relative; display: grid; place-items: center; border-radius: 50%; cursor: pointer;
+  width: clamp(88px, 14svh, 124px); height: clamp(88px, 14svh, 124px); position: relative; display: grid; place-items: center; border-radius: 50%; cursor: pointer;
   touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .ring:focus-visible { outline: 2px solid var(--indigo); outline-offset: 4px; }
@@ -88,7 +89,15 @@ h1 { margin: 0; font-family: var(--f-brush); font-weight: 400; font-size: 30px; 
 @keyframes breathe { 50% { transform: scale(1.04); opacity: .6; } }
 .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .ring .track { fill: none; stroke: var(--cinnabar); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 402; stroke-dashoffset: calc(402 * (1 - var(--k, 0))); }
-.ring .tip { font-size: 13px; letter-spacing: .2em; color: var(--ink-soft); }
+.ring .tip { font-size: 13px; letter-spacing: .16em; color: var(--ink); background: rgba(250,245,236,.75); padding: 1px 6px; border-radius: 2px; }
+.ring .call { width: 100%; height: 100%; border-radius: 50%; border: 2px solid var(--cinnabar); opacity: 0; }
+.ring.invite .call { animation: call 2s ease-out infinite; }
+.ring.invite .call + .call { animation-delay: 1s; }
+@keyframes call { 0% { opacity: .7; transform: scale(.82); } 100% { opacity: 0; transform: scale(1.45); } }
+.ring.invite .tip { animation: tipBlink 2s ease-in-out infinite; }
+@keyframes tipBlink { 50% { color: var(--cinnabar); } }
+.idle { font-family: var(--f-brush); font-size: clamp(26px, 4.2svh, 34px); line-height: 1.4; color: var(--ink-soft); animation: idleBreath 4.5s ease-in-out infinite; }
+@keyframes idleBreath { 0%, 100% { opacity: .35; } 50% { opacity: .75; } }
 .ring.on .enso { animation: none; opacity: 1; transform: scale(.94); transition: transform .4s; }
 .press .cap { font-size: 12px; letter-spacing: .24em; color: var(--ink-soft); min-height: 1.7em; }
 .again { font: inherit; font-size: 12px; letter-spacing: .2em; color: var(--ink-soft); background: none; border: none; padding: 6px 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line); }
@@ -137,9 +146,10 @@ h1 { margin: 0; font-family: var(--f-brush); font-weight: 400; font-size: 30px; 
     <div class="ring" id="ring" role="button" tabindex="0" aria-label="按住圆圈三秒，得到答案">
       <img class="enso" src="assets/circle-ring.webp" alt="">
       <svg viewBox="0 0 132 132" aria-hidden="true"><circle class="track" cx="66" cy="66" r="64"></circle></svg>
-      <span class="tip" id="tip">按住</span>
+      <span class="call"></span><span class="call"></span>
+      <span class="tip" id="tip">按住三秒</span>
     </div>
-    <div class="cap" id="cap">想好了，就把手指放上来</div>
+    <div class="cap" id="cap">心里想好了，就把手指放上来</div>
   </div>
 </main>
 <div class="veil" aria-hidden="true"></div>
@@ -223,7 +233,8 @@ let writeToken = 0;
 function layout(n) {
   const perLine = n <= 5 ? n : n <= 10 ? Math.ceil(n / 2) : Math.ceil(n / 3);
   const size = n <= 4 ? 64 : n <= 10 ? 54 : 44;
-  return { perLine, size: Math.min(size, Math.floor((Math.min(innerWidth, 460) - 110) / perLine)) };
+  const byHeight = Math.floor(innerHeight * (n <= 5 ? .085 : .07));
+  return { perLine, size: Math.min(size, byHeight, Math.floor((Math.min(innerWidth, 460) - 110) / perLine)) };
 }
 function brush(text, onDone) {
   const token = ++writeToken;
@@ -281,7 +292,20 @@ function reveal(index, kind, question) {
     $("note").textContent = kind === "今日之页" ? `今日之页 · 第${cnNum(index + 1)}页　山不动，月自来。` : `你心中所想之事 · 第${cnNum(index + 1)}页`;
     $("note").classList.remove("hide");
   }));
-  $("cap").textContent = kind === "今日之页" ? "想好了，就把手指放上来" : "墨已落纸。想再问，就再静一次心";
+  $("cap").textContent = kind === "今日之页" ? "心里想好了，就把手指放上来" : "墨已落纸。想再问，就再静一次心";
+}
+
+function showIdle() {
+  writeToken++;
+  const t = document.createElement("div");
+  t.className = "idle"; t.append("先在心里，", document.createElement("br"), "默想一件事");
+  answerEl.replaceChildren(t);
+  answerEl.classList.remove("wash");
+  $("seal").style.opacity = 0;
+  $("note").textContent = "";
+  $("answerText").textContent = "";
+  $("cap").textContent = "心里想好了，就把手指放上来";
+  $("ring").classList.add("invite");
 }
 
 function showToday() {
@@ -301,6 +325,7 @@ function startHold(e) {
   $("cap").textContent = BREATH[0];
   $("tip").textContent = "";
   $("ring").classList.add("on");
+  $("ring").classList.remove("invite");
   $("guide").classList.add("hide");
   setMoon(MOON_LOW);
   stopAnim = animate(HOLD_MS, k => {
@@ -321,7 +346,7 @@ function clearHold() {
   stage.classList.remove("meditate");
   $("ring").style.setProperty("--k", 0);
   $("ring").classList.remove("on");
-  $("tip").textContent = "按住";
+  $("tip").textContent = "按住三秒";
 }
 function endHold() {
   if (!holding) return;
@@ -333,6 +358,7 @@ function endHold() {
   answerEl.classList.remove("wash");
   $("seal").style.opacity = "";
   $("cap").textContent = "心未静，再来一次";
+  $("ring").classList.add("invite");
   $("guide").classList.remove("hide");
 }
 function complete() {
@@ -355,5 +381,5 @@ $("today").addEventListener("click", () => { $("guide").classList.remove("hide")
 
 const now = new Date();
 $("date").textContent = `${cnNum(now.getMonth() + 1)}月${cnNum(now.getDate())}日 · 月上东山`;
-showToday();
+showIdle();
 </script>
