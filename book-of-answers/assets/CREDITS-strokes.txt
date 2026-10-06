@@ -1,0 +1,3 @@
+assets/strokes.json 来自 hanzi-writer-data 2.0.1（https://github.com/chanind/hanzi-writer-data），
+原始笔画数据来自 Make Me a Hanzi，基于 Arphic 字体，按 Arphic Public License 分发，全文见 assets/LICENSE-stroke-data-ArphicPL.txt。
+笔画动画库 hanzi-writer（MIT）通过 jsDelivr 加载。
