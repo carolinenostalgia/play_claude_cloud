@@ -1,0 +1,221 @@
+<title>每日答案之书</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=Noto+Serif+SC:wght@400;600&display=swap">
+<style>
+/* Layout: one closed book on a desk. Today's page sits open; hold the cover to flip to a page for your own question. */
+:root {
+  --desk: #e7e9ef;
+  --page: #fbfbfd;
+  --ink: #1d2233;
+  --ink-soft: #5d6378;
+  --cover: #1f2a4d;
+  --foil: #a8822a;
+  --rule: #d5d8e2;
+  --f-display: "ZCOOL XiaoWei", "Songti SC", "STSong", serif;
+  --f-body: "Noto Serif SC", "Songti SC", "STSong", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --desk: #0f1220; --page: #1a1f33; --ink: #ecebe4; --ink-soft: #9aa0b6;
+    --cover: #2b3866; --foil: #d6b062; --rule: #2e3550; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --desk: #0f1220; --page: #1a1f33; --ink: #ecebe4; --ink-soft: #9aa0b6;
+  --cover: #2b3866; --foil: #d6b062; --rule: #2e3550; color-scheme: dark;
+}
+html, body { min-height: 100%; }
+body {
+  background: var(--desk); color: var(--ink);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.7;
+  padding: 0 16px; padding-block: 40px 56px;
+}
+.wrap { max-width: 560px; margin: 0 auto; display: grid; gap: 28px; }
+header { display: grid; gap: 4px; text-align: center; }
+.eyebrow { font-size: 12px; letter-spacing: .3em; color: var(--foil); }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: 34px; margin: 0; text-wrap: balance; }
+
+.page {
+  background: var(--page); border: 1px solid var(--rule); border-radius: 3px 10px 10px 3px;
+  box-shadow: -6px 0 0 -2px var(--cover), 0 18px 40px -24px rgba(20,25,50,.45);
+  padding: 28px 28px 22px; display: grid; gap: 18px; position: relative;
+  transform-origin: left center;
+}
+.page.flip { animation: flip .7s ease; }
+@keyframes flip { 0% { transform: perspective(1200px) rotateY(0); } 45% { transform: perspective(1200px) rotateY(-80deg); opacity: .3; } 100% { transform: perspective(1200px) rotateY(0); } }
+.meta { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.q { font-size: 14px; color: var(--ink-soft); min-height: 1.7em; overflow-wrap: anywhere; }
+.answer {
+  font-family: var(--f-display); font-size: clamp(28px, 7vw, 40px); line-height: 1.35;
+  text-align: center; padding-block: 34px; margin: 0; text-wrap: balance;
+  border-block: 1px solid var(--rule);
+}
+.pg { text-align: center; font-size: 12px; letter-spacing: .2em; color: var(--foil); font-variant-numeric: tabular-nums; }
+
+.ask { display: grid; gap: 12px; }
+label { font-size: 13px; color: var(--ink-soft); }
+input {
+  font: inherit; color: var(--ink); background: var(--page); border: 1px solid var(--rule);
+  border-radius: 8px; padding: 10px 12px; width: 100%; box-sizing: border-box;
+}
+input:focus-visible, button:focus-visible { outline: 2px solid var(--foil); outline-offset: 2px; }
+.hold {
+  font: inherit; font-family: var(--f-display); font-size: 20px; letter-spacing: .1em;
+  color: #f4efe0; background: var(--cover); border: 1px solid var(--foil); border-radius: 8px;
+  padding: 14px; cursor: pointer; position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.hold .bar { position: absolute; inset: auto 0 0 0; height: 3px; background: var(--foil); transform: scaleX(0); transform-origin: left; }
+.hold.holding .bar { transform: scaleX(1); transition: transform 1.6s linear; }
+.hint { font-size: 13px; color: var(--ink-soft); text-align: center; margin: 0; }
+.row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.ghost { font: inherit; font-size: 13px; color: var(--ink-soft); background: none; border: 1px solid var(--rule); border-radius: 999px; padding: 4px 14px; cursor: pointer; }
+
+.log { display: grid; gap: 0; }
+.log h2 { font-size: 13px; font-weight: 600; letter-spacing: .2em; color: var(--ink-soft); margin: 0 0 6px; }
+.log ol { list-style: none; padding: 0; margin: 0; }
+.log li { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 8px 0; border-top: 1px solid var(--rule); font-size: 14px; }
+.log li span:first-child { min-width: 0; overflow-wrap: anywhere; color: var(--ink-soft); }
+.log li span:last-child { font-family: var(--f-display); font-size: 16px; }
+@media (prefers-reduced-motion: reduce) { .page.flip { animation: none; } .hold.holding .bar { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">THE BOOK OF ANSWERS</div>
+    <h1>每日答案之书</h1>
+  </header>
+
+  <article class="page" id="page" aria-live="polite">
+    <div class="meta"><span id="kind">今日之页</span><span id="date"></span></div>
+    <div class="q" id="q">今天不必提问，这一页是给你的。</div>
+    <p class="answer" id="answer"></p>
+    <div class="pg" id="pg"></div>
+  </article>
+
+  <section class="ask">
+    <label for="question">心里有个问题？写下来，或者只是默想它。</label>
+    <input id="question" maxlength="60" placeholder="例如：这周要不要去见那个朋友？" autocomplete="off">
+    <button class="hold" id="hold" type="button">按住翻书<span class="bar"></span></button>
+    <p class="hint">按住约两秒，松手时书会翻到属于这个问题的一页。</p>
+    <div class="row">
+      <button class="ghost" id="today" type="button">回到今日之页</button>
+      <button class="ghost" id="copy" type="button">复制这句话</button>
+    </div>
+  </section>
+
+  <section class="log" id="log" hidden>
+    <h2>今天翻过的页</h2>
+    <ol id="logList"></ol>
+  </section>
+</div>
+
+<script>
+const ANSWERS = [
+  "是的。","不是现在。","再等一等。","放手去做。","答案就在你身边。","别急着下结论。","先睡一觉再说。",
+  "相信你的第一感觉。","这件事值得。","不值得为它烦恼。","换个角度看看。","去问问你信任的人。","这一次，说出来。",
+  "保持沉默更好。","会比你想的顺利。","需要更多耐心。","现在正是时候。","机会还会再来。","先照顾好自己。",
+  "你已经知道答案了。","试一次也无妨。","别把它想得太复杂。","这不是你的责任。","去吧，别回头。","留在原地也是一种选择。",
+  "答案会在路上出现。","把它写下来。","今天不宜决定。","肯定会有收获。","可能会有意外。","听从你的心。",
+  "也听听你的理智。","少一点担心。","再确认一次细节。","值得冒这个险。","别冒这个险。","让别人先开口。",
+  "主动一点。","轻一点，慢一点。","坚持下去。","是时候换条路了。","它会自己解决。","你需要一个计划。",
+  "做个小小的尝试。","不要妥协。","退一步海阔天空。","会有好消息。","笑一笑再说。","不要过度承诺。",
+  "把注意力放回当下。","这是一次成长。","有人在等你的回应。","先完成手头的事。","绝对可以。","几乎不可能。",
+  "未必，但值得一试。","答案在细节里。","别管别人怎么看。","照规则来。","这次可以破个例。","给它一点时间。",
+  "你比自己以为的更有准备。","先吃顿好的。","出去走走就明白了。","把门留着。","关上这扇门。","选那个让你安心的。",
+  "选那个让你心动的。","是个好兆头。","不必勉强。","慷慨一点。","这次为自己着想。","明天会更清楚。",
+  "旧的方法依然有效。","尝试新的方法。","不会后悔的。","你会学到东西。","不要只看表面。","别再犹豫了。",
+  "把它交给时间。","一切都会好的。","再问一次，带着诚意。","说“好”。","说“不”。","不如先说“也许”。",
+  "钱不是重点。","这关乎你的心情。","做减法。","多准备一个备选。","有人会帮你。","这一步只能自己走。",
+  "你担心的不会发生。","留意身边的小事。","先道个歉。","不必解释太多。","现在开始，还不晚。","是该结束了。",
+  "保持好奇。","温柔地坚持。","答案是肯定的。","答案是否定的。","你会感谢今天的决定。"
+];
+
+function todayKey(d = new Date()) {
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function hash(str) {
+  let h = 2166136261;
+  for (const ch of str) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+const $ = id => document.getElementById(id);
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+function show(kind, question, index) {
+  const page = $("page");
+  page.classList.remove("flip"); void page.offsetWidth; page.classList.add("flip");
+  setTimeout(() => {
+    $("kind").textContent = kind;
+    $("q").textContent = question;
+    $("answer").textContent = ANSWERS[index];
+    $("pg").textContent = `第 ${index + 1} 页 · 共 ${ANSWERS.length} 页`;
+  }, 300);
+}
+function showToday() {
+  const key = todayKey();
+  $("date").textContent = key.replace(/-/g, " · ");
+  show("今日之页", "今天不必提问，这一页是给你的。", hash("daily:" + key) % ANSWERS.length);
+}
+
+function renderLog() {
+  const data = store.get("boa-log");
+  const items = data && data.day === todayKey() ? data.items : [];
+  $("log").hidden = items.length === 0;
+  $("logList").replaceChildren(...items.map(it => {
+    const li = document.createElement("li");
+    const a = document.createElement("span"); a.textContent = it.q || "（默想的问题）";
+    const b = document.createElement("span"); b.textContent = ANSWERS[it.i];
+    li.append(a, b); return li;
+  }));
+}
+function addLog(q, i) {
+  const data = store.get("boa-log");
+  const items = data && data.day === todayKey() ? data.items : [];
+  items.unshift({ q, i });
+  store.set("boa-log", { day: todayKey(), items: items.slice(0, 12) });
+  renderLog();
+}
+
+const hold = $("hold");
+let timer = null;
+function start(e) {
+  e.preventDefault();
+  hold.classList.add("holding");
+  hold.firstChild.textContent = "正在翻书…";
+  timer = setTimeout(() => { timer = "ready"; hold.firstChild.textContent = "松手"; }, 1600);
+}
+function end() {
+  if (!hold.classList.contains("holding")) return;
+  hold.classList.remove("holding");
+  hold.firstChild.textContent = "按住翻书";
+  if (timer !== "ready") { clearTimeout(timer); timer = null; return; }
+  timer = null;
+  const q = $("question").value.trim();
+  const i = Math.floor(Math.random() * ANSWERS.length);
+  show("你的这一页", q ? `问：${q}` : "问：（默想的问题）", i);
+  addLog(q, i);
+}
+hold.addEventListener("pointerdown", start);
+hold.addEventListener("pointerup", end);
+hold.addEventListener("pointerleave", end);
+hold.addEventListener("pointercancel", end);
+hold.addEventListener("keydown", e => { if ((e.key === " " || e.key === "Enter") && !e.repeat && !hold.classList.contains("holding")) start(e); });
+hold.addEventListener("keyup", e => { if (e.key === " " || e.key === "Enter") end(); });
+
+$("today").addEventListener("click", showToday);
+$("copy").addEventListener("click", async () => {
+  const text = $("answer").textContent;
+  const btn = $("copy");
+  try { await navigator.clipboard.writeText(text); btn.textContent = "已复制"; }
+  catch { const r = document.createRange(); r.selectNodeContents($("answer")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "已选中，可手动复制"; }
+  setTimeout(() => btn.textContent = "复制这句话", 1600);
+});
+
+showToday();
+renderLog();
+</script>
