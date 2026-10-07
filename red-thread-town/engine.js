@@ -275,8 +275,8 @@ class Agent {
     }
     if (def.dog) this.dog = { x: this.x + 8, y: this.y, phase: 0 };
   }
-  get name2() { return `${this.id} ${this.name}`; }
-  say(text, dur, kind = 'say', to = null) { this.bubble = { text, t: 0, dur, kind, to }; }
+  get name2() { return this.main ? `${this.id} ${this.name}` : this.name; }
+  say(text, dur, kind = 'say', to = null, tone = 'neutral') { this.bubble = { text, t: 0, dur, kind, to, tone }; }
 
   basePlan(d) {
     if (this.plans[d]) return this.plans[d];
@@ -294,8 +294,11 @@ class Agent {
       items.push({ start: H(s), end: H(e), loc, act: 'fun', mode, label });
     };
     if (workday) {
-      const ws = Math.max(w.start + rand(-0.15, 0.15), wake + 0.4), we = w.end + rand(-0.2, 0.3);
-      const job = { loc: w.loc, act: 'work', mode: w.mode, label: w.label, pose: w.pose, spot: w.spot };
+      const ws = Math.max(w.start + rand(-0.15, 0.15), wake + 0.4);
+      let we = w.end + rand(-0.2, 0.3);
+      if (this.special === 'overtime' && Math.random() < 0.3) { we += rand(1.5, 2.5); this.overtimeDay = d; }   // the boss wants "just one more thing"
+
+      const job = { loc: w.loc, act: 'work', mode: w.mode, label: w.label, pose: w.pose, spot: w.spot, targets: w.targets };
       if (w.mode === 'inside' && we - ws > 6 && ws < 11.5 && Math.random() < 0.55) {
         const wl = LOC[w.loc] && LOC[w.loc].door ? LOC[w.loc].door : LOC.cafe.door;
         const [lloc, lmode] = pick([['cafe', 'spot'], ['hotpot', 'inside'], ['shop', 'inside'], ['market', 'inside']].sort((p, q) => manh(LOC[p[0]].door, wl) - manh(LOC[q[0]].door, wl)).slice(0, 2));
@@ -375,6 +378,7 @@ class Agent {
   update(dtG) {
     if (this.dog) this.dogTick(dtG);
     if (this.lock) { this.moving = false; return; }
+    if (this.chase) { this.chaseTick(dtG); return; }
     if (this.driving) { this.driveTick(); return; }
     const g = this.currentGoal();
     if (g !== this.goal && !(this.goal && sameItem(g, this.goal))) { this.goal = g; this.newGoal(g); }
@@ -515,7 +519,7 @@ class Agent {
     if (g.mode === 'roam') {
       if (this.pauseT > 0) { this.pauseT -= dtG; return; }
       if (!this.roamTo) {
-        const L = pick(ROAM_TARGETS.concat([LOC.park, LOC.fun]));
+        const L = g.targets ? LOC[pick(g.targets)] : pick(ROAM_TARGETS.concat([LOC.park, LOC.fun]));
         const dest = L.kind === 'area' ? randomInArea(L) : L.door;
         this.roamTo = { g, mode: this.go === 'bike' ? 'bike' : 'walk', stage: 'move', path: walkRoute({ x: this.x, y: this.y }, dest), pi: 0, L };
       }
@@ -525,7 +529,8 @@ class Agent {
       this.trip = null;
       if (done) {
         this.pauseT = rand(5, 12);
-        if (this.id === 'I') this.say(pick(['Your food is here!', 'Delivery! Five stars, please!', `Delivery for ${this.roamTo.L.name}!`]), 2.6);
+        if (this.id === 'Ivan') this.say(pick(['Your food is here!', 'Delivery! Five stars, please!', `Delivery for ${this.roamTo.L.name}!`]), 2.6);
+        if (this.id === 'F') this.say(pick([`📸 ${this.roamTo.L.name}: 10 out of 10!`, 'Photo first, then eat!', `Trying everything on the menu at ${this.roamTo.L.name}.`, 'Mmm... this goes on the blog!', 'Okay, ONE more bite.']), 3, 'say', null, 'happy');
         this.roamTo = null;
       }
     }
@@ -570,6 +575,7 @@ class Couple {
   mood() { return this.aff >= 70 ? 'sweet' : this.aff >= 40 ? 'normal' : 'sour'; }
   bump(d, who) {
     this.aff = clamp(this.aff + d, 0, 100);
+    this.bumpSeq = (this.bumpSeq || 0) + 1; this.lastBump = d;
     const t = who || pick([this.a, this.b]);
     G.floats.push({ x: t.x, y: t.y - 40, text: d >= 0 ? `❤ +${Math.round(d)}` : `💔 ${Math.round(d)}`, c: d >= 0 ? '#ff4d6d' : '#6c757d', t: 0, ag: t });
   }
@@ -672,9 +678,13 @@ class Scene {
     ln.text = ln.text.replace(/(^|[!?] )([a-z])/g, (m, p, ch) => p + ch.toUpperCase());   // a topic word can start a sentence
     const dur = ln.dur || clamp(1.8 + ln.text.length * 0.07, 2.6, 6.5);
     const to = ln.who && this.c && (ln.who === this.c.a || ln.who === this.c.b) && this.kind !== 'stood' ? this.c.other(ln.who) : null;
-    if (ln.who) ln.who.say(ln.text, dur + 0.3, this.kind === 'text' ? 'text' : this.kind === 'call' || this.phone ? 'phone' : 'say', to);
-    else Director.subtitle(ln.text, dur + 0.2);
+    const seq = this.c ? this.c.bumpSeq : 0;
     if (ln.fx) ln.fx();
+    let tone = ln.tone;
+    if (!tone && this.c && this.c.bumpSeq !== seq && Math.abs(this.c.lastBump) >= 1) tone = this.c.lastBump > 0 ? 'happy' : 'sad';
+    if (!tone) tone = this.tone || (this.c ? { sweet: 'happy', sour: 'sad' }[this.c.mood()] : null) || 'neutral';
+    if (ln.who) ln.who.say(ln.text, dur + 0.3, this.kind === 'text' ? 'text' : this.kind === 'call' || this.phone ? 'phone' : 'say', to, tone);
+    else Director.subtitle(ln.text, dur + 0.2);
     if (ln.sfx) sfx(ln.sfx);
     this.next = this.t + dur;
   }
@@ -714,7 +724,7 @@ function startCall(c) {
     lines.push({ who: B, text: fillT(pick(L.callStatus), { s: statusPhrase(B) }) });
     lines.push({ who: A, text: T_(L.callChat, A, v) });
     lines.push({ who: B, text: T_(L.callChat, B, v), fx: () => c.bump(rand(1, 4), B) });
-    if (c.stage >= 2) lines.push({ who: pick([A, B]), text: pick(L.callLove), fx: () => c.bump(2, A) });
+    if (c.stage >= 2) lines.push({ who: pick([A, B]), text: pick(L.callLove), fx: () => c.bump(2, A), tone: 'happy' });
     if (Math.random() < 0.55 + c.stage * 0.12) {
       lines.push({ who: A, text: fillT(pick(L.invite), v) });
       agreed = Math.random() < (c.aff - 10) / 60;
@@ -726,7 +736,7 @@ function startCall(c) {
   sfx('ring');
   log(kind === 'fight' ? `📞 ${A.name2} calls ${B.name2}... and they fight` : `📞 ${A.name2} calls ${B.name2}`);
   runScene(new Scene(kind === 'fight' ? 'call' : 'call', c, lines, {
-    title: kind === 'fight' ? 'Fighting on the phone' : c.calls === 1 ? 'The first call' : 'A long phone chat', A, B, phone: true,
+    title: kind === 'fight' ? 'Fighting on the phone' : c.calls === 1 ? 'The first call' : 'A long phone chat', A, B, phone: true, tone: kind === 'fight' ? 'sad' : null,
     onEnd() {
       A.onPhone = B.onPhone = false;
       c.nextCall = G.t + [rand(240, 600), rand(200, 520), rand(160, 420), rand(300, 700)][c.stage];
@@ -783,7 +793,7 @@ function startDateScene(c) {
   if (md && Math.random() < 0.8) {
     const ex = pick(DATE_MOOD[md]), s1 = pick([a, b]);
     ex.forEach((t, i) => {
-      const ln = { who: i % 2 ? c.other(s1) : s1, text: t };
+      const ln = { who: i % 2 ? c.other(s1) : s1, text: t, tone: md === 'sour' ? 'sad' : 'happy' };
       if (i === ex.length - 1) ln.fx = () => c.bump(md === 'sour' ? -rand(3, 7) : rand(2, 5), s1);
       lines.push(ln);
     });
@@ -804,8 +814,8 @@ function dateEnding(c) {
   const { a, b } = c, out = [];
   const conf = EXTRO[a.temper] + Math.random() * 0.5 > EXTRO[b.temper] + Math.random() * 0.5 ? a : b, oth = c.other(conf);
   if (c.aff < 15) {
-    out.push({ who: conf, text: T_(L.breakup, conf, {}), sfx: 'bad' });
-    out.push({ who: oth, text: pick(L.breakupReply) });
+    out.push({ who: conf, text: T_(L.breakup, conf, {}), sfx: 'bad', tone: 'sad' });
+    out.push({ who: oth, text: pick(L.breakupReply), tone: 'sad' });
     c.pendingBreak = true;
     return out;
   }
@@ -813,7 +823,7 @@ function dateEnding(c) {
     out.push({ who: null, text: '(Something in the air between them has changed...)', fx: () => { c.stage = 1; Director.card('💗 Flirting', `${a.name2} ✕ ${b.name2}`); log(`💗 ${a.name2} and ${b.name2} are starting to flirt`); sfx('heart'); } });
   } else if (c.stage === 1 && c.aff >= 68 && c.dates >= 1) {
     const ok = Math.random() < (c.aff - 40) / 40;
-    out.push({ who: conf, text: T_(L.confess, conf, { b: oth.name }), sfx: 'heart' });
+    out.push({ who: conf, text: T_(L.confess, conf, { b: oth.name }), sfx: 'heart', tone: 'happy' });
     out.push({
       who: oth, text: T_(ok ? L.accept : L.reject, oth, {}),
       fx: () => {
@@ -823,7 +833,7 @@ function dateEnding(c) {
     });
   } else if ((c.stage === 2 || c.stage === 4) && !c.together && c.aff >= 72 && c.dates >= 2) {
     const ok = Math.random() < (c.aff - 50) / 35;
-    out.push({ who: conf, text: fillT(pick(MOVE_IN.ask), { b: oth.name }), sfx: 'heart' });
+    out.push({ who: conf, text: fillT(pick(MOVE_IN.ask), { b: oth.name }), sfx: 'heart', tone: 'happy' });
     out.push({
       who: oth, text: pick(ok ? MOVE_IN.yes : MOVE_IN.no),
       fx: () => {
@@ -837,12 +847,12 @@ function dateEnding(c) {
     });
   } else if (c.stage === 3 && c.aff >= 84 && c.dates >= 4 && Math.random() < 0.55) {
     out.push({ who: null, text: `(${conf.name} kneels down and pulls out a little box)` });
-    out.push({ who: conf, text: fillT(pick(L.propose), { b: oth.name }), sfx: 'heart' });
+    out.push({ who: conf, text: fillT(pick(L.propose), { b: oth.name }), sfx: 'heart', tone: 'happy' });
     out.push({ who: oth, text: pick(L.wed), fx: () => { c.stage = 4; c.bump(8, conf); log(`💒 ${a.name2} and ${b.name2} got married!`); celebrate(c, '💒 Just married!', `${a.name2} ❤ ${b.name2}`, c.homeId); } });
   }
   const good = c.aff >= 42;
-  out.push({ who: a, text: T_(good ? L.byeGood : L.byeBad, a, {}) });
-  out.push({ who: b, text: T_(good ? L.byeGood : L.byeBad, b, {}) });
+  out.push({ who: a, text: T_(good ? L.byeGood : L.byeBad, a, {}), tone: good ? 'happy' : 'sad' });
+  out.push({ who: b, text: T_(good ? L.byeGood : L.byeBad, b, {}), tone: good ? 'happy' : 'sad' });
   return out;
 }
 // Move into one home (a house beats an apartment)
@@ -873,7 +883,7 @@ function startMoveOut(c) {
   const phone = !(dist(a, b) < 120 && !a.hidden && !b.hidden);
   A.onPhone = B.onPhone = phone;
   runScene(new Scene('breakup', c, lines, {
-    title: 'Moving out', A, B, phone, prio: 4,
+    title: 'Moving out', A, B, phone, prio: 4, tone: 'sad',
     onEnd() {
       a.onPhone = b.onPhone = false;
       c.together = false; if (c.stage === 3) c.stage = 2;
@@ -914,7 +924,8 @@ function startText(c) {
     if (pool === 'sour') log(`💬 ${A.name2} and ${B.name2} are bickering by text`);
   }
   A.onPhone = B.onPhone = true;
-  runScene(new Scene('text', c, lines, { title, A, B, phone: true, onEnd() { A.onPhone = B.onPhone = false; } }));
+  const tone = title.startsWith('Left') ? 'sad' : { sweet: 'happy', surprise: 'happy', sour: 'sad', normal: 'neutral' }[pool];
+  runScene(new Scene('text', c, lines, { title, A, B, phone: true, tone, onEnd() { A.onPhone = B.onPhone = false; } }));
 }
 function startLateReply(c) {
   const r = c.reply; c.reply = null;
@@ -926,7 +937,7 @@ function startLateReply(c) {
   ];
   log(`⌛ ${r.from.name2} replied to ${r.to.name2} ${hrs} hour${hrs === 1 ? '' : 's'} late`);
   r.from.onPhone = r.to.onPhone = true;
-  runScene(new Scene('text', c, lines, { title: `Replying ${hrs}h late`, A: r.from, B: r.to, phone: true, onEnd() { r.from.onPhone = r.to.onPhone = false; } }));
+  runScene(new Scene('text', c, lines, { title: `Replying ${hrs}h late`, A: r.from, B: r.to, phone: true, tone: 'neutral', onEnd() { r.from.onPhone = r.to.onPhone = false; } }));
 }
 
 /* ---------------- Big moments: fireworks + confetti ---------------- */
@@ -950,7 +961,7 @@ function startStoodUp(c, waiting) {
     { who: waiting, text: "Forget it, I'm leaving.", fx: () => c.bump(-rand(10, 16), waiting) },
   ];
   log(`⏰ ${other.name2} stood up ${waiting.name2}`);
-  runScene(new Scene('stood', c, lines, { title: 'Stood up', A: waiting, onEnd() { waiting.lock = null; c.clearDate(); c.nextCall = G.t + rand(60, 200); } }));
+  runScene(new Scene('stood', c, lines, { title: 'Stood up', A: waiting, tone: 'sad', onEnd() { waiting.lock = null; c.clearDate(); c.nextCall = G.t + rand(60, 200); } }));
 }
 function startBreakup(c) {
   const { a, b } = c;
@@ -964,7 +975,7 @@ function startBreakup(c) {
     { who: B, text: pick(L.breakupReply) },
   ];
   runScene(new Scene(near ? 'breakup' : 'call', c, lines, {
-    title: near ? 'About to break up...' : 'Breaking up by phone', A, B, phone: !near, prio: 4,
+    title: near ? 'About to break up...' : 'Breaking up by phone', A, B, phone: !near, prio: 4, tone: 'sad',
     onEnd() { A.onPhone = B.onPhone = false; endCouple(c, 'breakup', A); },
   }));
 }
@@ -1023,6 +1034,7 @@ function describe(a) {
     if (k === 'call') return `on the phone with ${a.partner.name}`;
     if (k === 'stood') return 'fuming after being stood up';
   }
+  if (a.chase) return 'chasing a thief! 🚔';
   if (a.driving) {
     const f = a.car.passenger;
     return f && a.car.state === 'carry' ? `driving a taxi with ${f.name2} in the back` : f ? `on the way to pick up ${f.name2}` : 'cruising around in the taxi';
@@ -1044,3 +1056,86 @@ function describe(a) {
   if (g.act === 'date') return `at ${where}, waiting for ${a.partner ? a.partner.name : 'someone'}`;
   return `${g.label} at ${where}`;
 }
+
+/* ---------------- Job drama: the doctor's emergencies, the police officer's chases ---------------- */
+G.nextEmergency = G.t + rand(240, 700);
+G.nextCase = G.t + rand(150, 500);
+G.robber = null;
+const ROBBER_LOOK = { skin: '#e0ac69', hair: { s: 'short', c: '#111' }, hat: { t: 'beanie', c: '#111' }, top: { t: 'stripe', c: '#222', c2: '#eee' }, bottom: { t: 'pants', c: '#111' }, shoes: '#111', acc: ['sunglasses', 'backpack'], h: 1.0, w: 1.0 };
+function jobCall(who, lines, title, onEnd) {
+  who.onPhone = true;
+  sfx('ring');
+  runScene(new Scene('job', null, lines, { title, A: who, phone: true, prio: 3, tone: 'sad', onEnd() { who.onPhone = false; onEnd(); } }));
+}
+function jobEvents() {
+  const doc = G.agents.find(a => a.special === 'emergency'), cop = G.agents.find(a => a.special === 'police');
+  if (doc && G.t >= G.nextEmergency) {
+    if (doc.lock || doc.onPhone || (doc.goal && doc.goal.emergency)) G.nextEmergency = G.t + 20;
+    else {
+      G.nextEmergency = G.t + rand(600, 1400);
+      const h = tod() / 60, night = h < 6 || h > 22;
+      jobCall(doc, [
+        { who: null, text: `(${doc.name}'s phone rings${night ? ' in the middle of the night' : h < 9 ? ' at dawn' : ''}. It's the hospital.)` },
+        { who: doc, text: pick(["Hello? ...A car crash? I'm on my way!", 'Dr. Ava speaking. ...Code blue? Five minutes!', "Again?! ...Okay. Prep the OR, I'm coming.", "...How many injured? Don't move them, I'm coming."]) },
+      ], '🚑 Emergency call', () => {
+        const start = G.t, end = G.t + rand(120, 220);
+        doc.extras.push({ start, end, loc: 'hospital', act: 'work', mode: 'inside', label: 'handling an emergency 🚑', emergency: true });
+        doc.goal = null;
+        log(`🚑 ${doc.name2} was called in for an emergency`);
+        const c = doc.couple;
+        if (c && c.date && c.date.start < end + 60) {
+          c.clearDate(); c.bump(-6, c.other(doc));
+          c.other(doc).say(pick(['An emergency? Again?!', '...I understand. Go save lives.', "Seriously? We had plans!"]), 3.5, 'text', doc, 'sad');
+          log(`💔 ${doc.name2} had to cancel a date with ${c.other(doc).name2}`);
+        }
+      });
+    }
+  }
+  if (cop && G.t >= G.nextCase && !G.robber) {
+    if (cop.lock || cop.onPhone || cop.chase || cop.inCar) G.nextCase = G.t + 20;
+    else {
+      G.nextCase = G.t + rand(500, 1200);
+      const L = LOC[pick(['market', 'shop', 'mall', 'bar', 'hotpot', 'books'])];
+      jobCall(cop, [
+        { who: null, text: `(${cop.name}'s radio crackles: "Robbery at ${L.name}! Suspect on foot!")` },
+        { who: cop, text: pick(['On my way!', 'Copy that. In pursuit!', 'Not on my watch.', "Ugh, I was about to eat. Fine. Going!"]) },
+      ], '🚔 Police call', () => {
+        const far = pick(ROAM_TARGETS.filter(x => manh(x.door, L.door) > 600));
+        G.robber = { x: L.door.x, y: L.door.y, look: ROBBER_LOOK, phase: 0, facing: 1, path: walkRoute(L.door, far.door), pi: 0, t: 0, caught: 0 };
+        cop.leave(); cop.trip = null; cop.hidden = false; cop.chase = true; cop.chaseT = 0;
+        log(`🚔 ${cop.name2} is chasing a thief from ${L.name}!`);
+        Director.offer({ kind: 'chase', A: cop, prio: 3, dur: 22, title: '🚔 Chase!' });
+      });
+    }
+  }
+}
+function robberTick(dtG) {
+  const r = G.robber; if (!r) return;
+  r.t += dtG;
+  if (r.caught) { if (G.realT - r.caught > 2.5) G.robber = null; return; }
+  let step = WALK * 1.45 * dtG;
+  while (step > 0) {
+    const tgt = r.path[r.pi + 1];
+    if (!tgt) { const far = pick(ROAM_TARGETS); r.path = walkRoute({ x: r.x, y: r.y }, far.door); r.pi = 0; break; }
+    const dx = tgt.x - r.x, dy = tgt.y - r.y, d = Math.hypot(dx, dy);
+    if (Math.abs(dx) > 0.3) r.facing = dx > 0 ? 1 : -1;
+    if (d <= step) { r.x = tgt.x; r.y = tgt.y; r.pi++; step -= d; } else { r.x += dx / d * step; r.y += dy / d * step; step = 0; }
+  }
+  r.phase += dtG * 3.2;
+  if (r.t > 260) { log('🦹 The thief got away this time...'); G.robber = null; for (const a of G.agents) if (a.chase) { a.chase = false; a.goal = null; } }
+}
+Agent.prototype.chaseTick = function (dtG) {
+  const r = G.robber;
+  if (!r || r.caught) { this.chase = false; this.goal = null; this.moving = false; return; }
+  const dx = r.x - this.x, dy = r.y - this.y, d = Math.hypot(dx, dy), step = WALK * 1.75 * dtG;
+  this.moving = true; this.pose = 'stand'; this.facing = dx > 0 ? 1 : -1; this.phase += dtG * 3.5;
+  if (d < 14) {
+    r.caught = G.realT;
+    this.say(pick(["Freeze! You're under arrest! 🚔", 'Gotcha! Hands where I can see them!', "End of the line, buddy."]), 3.5, 'say', null, 'happy');
+    log(`🚔 ${this.name2} caught the thief!`);
+    Director.card('🚔 Caught!', `${this.name2} got the thief`);
+    sfx('heart'); this.chase = false; this.goal = null; this.moving = false;
+    return;
+  }
+  this.x += dx / d * Math.min(step, d); this.y += dy / d * Math.min(step, d);
+};

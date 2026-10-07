@@ -25,7 +25,7 @@ function sfx(n) {
 }
 
 /* ---------------- 导演 ---------------- */
-const PRIO = { bind: 5, moment: 5, breakup: 4, date: 3, call: 2, stood: 2, text: 1 };
+const PRIO = { bind: 5, moment: 5, breakup: 4, date: 3, job: 3, chase: 3, call: 2, stood: 2, text: 1 };
 const Director = {
   mode: 'director', god: false, lastHand: -99,
   cam: { x: WORLD_W / 2, y: WORLD_H / 2, z: 0.6 }, camL: { x: 0, y: 0, z: 1 }, camR: { x: 0, y: 0, z: 1 },
@@ -53,7 +53,8 @@ const Director = {
     const s = q.s;
     if (s.kind === 'bind' || s.kind === 'moment') return { type: 'pair', A: s.A, B: s.B, until: G.realT + s.dur, prio: q.prio, cine: true, title: s.title, couple: s.c };
     const A = s.A || (s.c && s.c.a), B = s.B || (s.c && s.c.b);
-    if (s.kind === 'stood') return { type: 'follow', A, scene: s, prio: q.prio, cine: true, title: s.title };
+    if (s.kind === 'chase') return { type: 'follow', A: s.A, until: G.realT + s.dur, prio: q.prio, cine: true, title: s.title };
+    if (s.kind === 'stood' || !B) return { type: 'follow', A, scene: s, prio: q.prio, cine: true, title: s.title };
     const far = A && B && dist(focusPt(A), focusPt(B)) > 260;
     return { type: far ? 'split' : 'pair', A, B, scene: s, prio: q.prio, cine: true, title: s.title };
   },
@@ -75,7 +76,7 @@ const Director = {
     }
     const pool = [];
     for (const a of G.agents) {
-      if (this.recent.includes(a)) continue;
+      if (!a.main || this.recent.includes(a)) continue;
       let w = a.hidden ? 0.25 : 2;
       if (a.moving || a.inCar) w *= 1.6;
       if (a.partner) w *= 2;
@@ -195,7 +196,7 @@ function hitTest(x, y) {
     if (x < v.x || x > v.x + v.w || y < v.y || y > v.y + v.h) continue;
     const w = s2w(v, x, y);
     for (const a of G.agents) {
-      if (a.hidden || a.inCar) continue;
+      if (!a.main || a.hidden || a.inCar) continue;
       const d = Math.hypot(a.x - w.x, a.y - 14 - w.y) * v.cam.z;
       if (d < 22 && d < bd) { bd = d; best = a; }
     }
@@ -313,7 +314,7 @@ window.addEventListener('keydown', e => {
 // 名单
 function buildRoster() {
   const box = $('#people');
-  for (const a of G.agents) {
+  for (const a of G.agents.filter(a => a.main)) {
     const row = document.createElement('div'); row.className = 'person';
     row.innerHTML = `<canvas width="72" height="88"></canvas><div class="info"><div class="nm"><b style="background:${a.color}">${a.id}</b>${a.name}<span class="job">${a.job} · ${TEMPER_NAME[a.temper]}</span></div><div class="home"></div><div class="st"></div><div class="rel"></div></div>`;
     const pc = row.querySelector('canvas').getContext('2d');
@@ -332,7 +333,7 @@ function heartsHTML(c) {
   return `<span class="hearts" title="How they feel about each other">${'♥'.repeat(full)}${half ? '<i>♥</i>' : ''}<b>${'♥'.repeat(5 - full - half)}</b></span>`;
 }
 function refreshRoster() {
-  for (const a of G.agents) {
+  for (const a of G.agents.filter(a => a.main)) {
     a.row.querySelector('.st').textContent = describe(a);
     a.row.querySelector('.home').textContent = `🏠 ${locName(a.home)}${a.home !== a.origHome ? ` (with ${a.partner ? a.partner.name : 'partner'})` : ''}`;
     const c = a.couple, rel = a.row.querySelector('.rel');
@@ -464,20 +465,20 @@ function ambient(dt) {
   thinkT -= dt; chatT -= dt;
   if (thinkT <= 0) {
     thinkT = rand(0.9, 1.8);
-    const a = pick(G.agents);
+    const a = Math.random() < 0.85 ? pick(G.agents.filter(p => p.main)) : pick(G.agents);
     if (!a.bubble && !a.lock && !a.onPhone) {
-      let text;
+      let text, tone = 'neutral';
       const g = a.goal;
       if (g && g.act === 'sleep' && a.hidden) text = pick(CONTEXT_THOUGHTS.sleep);
       else if (a.trip && a.trip.stage === 'wait') text = pick(CONTEXT_THOUGHTS.wait);
       else if (a.trip && a.trip.stage === 'ride') text = pick(CONTEXT_THOUGHTS.taxi);
-      else if (a.heartbreakUntil > G.t && Math.random() < 0.6) text = pick(CONTEXT_THOUGHTS.heartbroken);
-      else if (a.partner && Math.random() < 0.35) text = fillT(pick(CONTEXT_THOUGHTS.inlove), { p: a.partner.name });
+      else if (a.heartbreakUntil > G.t && Math.random() < 0.6) { text = pick(CONTEXT_THOUGHTS.heartbroken); tone = 'sad'; }
+      else if (a.partner && Math.random() < 0.35) { const sour = a.couple.mood() === 'sour'; text = sour ? pick(['Why is it always like this...', `Is ${a.partner.name} even thinking about me?`, 'I need some space.']) : fillT(pick(CONTEXT_THOUGHTS.inlove), { p: a.partner.name }); tone = sour ? 'sad' : 'happy'; }
       else if (G.rain && !a.hidden && Math.random() < 0.3) text = pick(CONTEXT_THOUGHTS.rain);
       else if (a.moving && Math.random() < 0.3) text = pick(CONTEXT_THOUGHTS.walk);
       else if (!a.partner && Math.random() < 0.12) text = pick(CONTEXT_THOUGHTS.single);
       else text = pick(a.thoughts);
-      a.say(text, 3.4, 'think');
+      a.say(text, 3.4, 'think', null, tone);
     }
   }
   if (chatT <= 0) {
@@ -516,9 +517,11 @@ function frame(now) {
     for (let i = 0; i < steps; i++) {
       G.t += dtG / steps;
       for (const a of G.agents) a.update(dtG / steps);
+      robberTick(dtG / steps);
       for (const c of G.cars) c.update(dtG / steps);
     }
     for (const c of G.couples.slice()) c.tick();
+    jobEvents();
     weather();
     if (day() !== lastDay) { lastDay = day(); log(`🌅 Day ${day() + 1} (${WEEK[day() % 7]}) begins`); for (const a of G.agents) for (const k in a.plans) if (+k < day() - 1) delete a.plans[k]; }
     for (const s of G.scenes) s.update(dt);
@@ -570,7 +573,7 @@ function boot() {
   // 先跑一会儿，让大家散开到各自的位置
   for (let i = 0; i < 60; i++) { G.t += 0.5; for (const a of G.agents) a.update(0.5); for (const c of G.cars) c.update(0.5); }
   buildRoster(); refreshRoster();
-  log('🏙 Morning in Red Thread Town. 26 people go about their day, waiting for you to tie some red threads.');
+  log('🏙 Morning in Red Thread Town. Six people with letters A–F are waiting for you to tie some red threads.');
   Director.cam.z = fitZoom({ w: SW_, h: SH_ });
   requestAnimationFrame(frame);
 }
