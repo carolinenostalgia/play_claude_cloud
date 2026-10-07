@@ -137,9 +137,9 @@ const Director = {
     if (!sh) return '';
     if (sh.title && sh.A && sh.B) return `${sh.title} · ${sh.A.name2} ✕ ${sh.B.name2}`;
     if (sh.title && sh.A) return `${sh.title} · ${sh.A.name2}`;
-    if (sh.type === 'follow') return `${sh.A.name2}（${sh.A.job}）${describe(sh.A)}`;
-    if (sh.type === 'wide') return `红线小镇 · 第 ${day() + 1} 天 ${WEEK[day() % 7]} ${clockStr()} · ${G.couples.length} 条红线`;
-    if (sh.type === 'loc') return `${sh.L.emoji || ''} ${sh.L.name} · 里面有 ${[...sh.L.inside].map(a => a.id).sort().join('、')}`;
+    if (sh.type === 'follow') return `${sh.A.name2} (${sh.A.job}) · ${describe(sh.A)}`;
+    if (sh.type === 'wide') return `Red Thread Town · Day ${day() + 1}, ${WEEK[day() % 7]} ${clockStr()} · ${G.couples.length} red thread${G.couples.length === 1 ? '' : 's'}`;
+    if (sh.type === 'loc') return `${sh.L.emoji || ''} ${sh.L.name} · inside: ${[...sh.L.inside].map(a => a.id).sort().join(', ')}`;
     return '';
   },
   views() {
@@ -189,7 +189,7 @@ function pDown(id, x, y, kind) {
     if (UI.pending && UI.pending.agent === a) { UI.pending.pid = id; UI.pending.at = G.realT; return; }
     UI.pending = { agent: a, pid: id, at: G.realT };
     sfx('pick');
-    toast(`选中了 ${a.name2}（${a.job}）——再${kind === 'hand' ? '捏' : '点'}一个人，给他们牵红线`, 2.2);
+    toast(`Picked ${a.name2} (${a.job}). Now ${kind === 'hand' ? 'pinch' : 'click'} someone else to tie a red thread.`, 2.2);
     return;
   }
   if (kind !== 'hand') UI.pan = { id, x, y, cam: { ...Director.cam } };
@@ -208,7 +208,7 @@ function pMove(id, x, y) {
 function pUp(id, x, y) {
   const p = UI.ptr[id];
   if (UI.pan && UI.pan.id === id) {
-    if (p && p.moved < 6 && UI.pending && !hitTest(x, y)) { UI.pending = null; toast('取消选择', 1); }
+    if (p && p.moved < 6 && UI.pending && !hitTest(x, y)) { UI.pending = null; toast('Selection cleared', 1); }
     UI.pan = null;
   }
   if (UI.pending && UI.pending.pid === id && p && !p.used && p.moved > 18) {
@@ -272,11 +272,11 @@ let toastTimer = 0;
 function toast(msg, secs = 3) { const el = $('#toast'); el.textContent = msg; el.classList.add('show'); toastTimer = secs; }
 function setCamMode(m) {
   Director.mode = m;
-  $('#camMode').textContent = m === 'director' ? '🎬 导演镜头' : '🖐 自由镜头';
+  $('#camMode').textContent = m === 'director' ? '🎬 Director cam' : '🖐 Free cam';
   $('#camMode').classList.toggle('on', m === 'director');
   if (m === 'director') Director.shot = null;
 }
-$('#camMode').addEventListener('click', () => { audio(); setCamMode(Director.mode === 'director' ? 'free' : 'director'); toast(Director.mode === 'director' ? '导演会自动切镜头，带你看每个人在干什么' : '自由镜头：拖动平移，滚轮/双指缩放', 2.4); });
+$('#camMode').addEventListener('click', () => { audio(); setCamMode(Director.mode === 'director' ? 'free' : 'director'); toast(Director.mode === 'director' ? 'The director cuts between shots to show you what everyone is up to' : 'Free cam: drag to pan, scroll or pinch to zoom', 2.4); });
 document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => { audio(); setSpeed(+b.dataset.speed); }));
 function setSpeed(s) { G.speed = s; document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === s)); }
 $('#rosterBtn').addEventListener('click', () => document.body.classList.toggle('roster-open'));
@@ -285,7 +285,7 @@ $('#logBtn').addEventListener('click', () => document.body.classList.toggle('log
 window.addEventListener('keydown', e => {
   if (e.key === ' ') { setSpeed(G.speed ? 0 : 1); e.preventDefault(); }
   if (e.key === '1') setSpeed(1); if (e.key === '2') setSpeed(2); if (e.key === '3') setSpeed(4);
-  if (e.key === 'Escape' && UI.pending) { UI.pending = null; toast('取消选择', 1); }
+  if (e.key === 'Escape' && UI.pending) { UI.pending = null; toast('Selection cleared', 1); }
 });
 
 // 名单
@@ -299,9 +299,9 @@ function buildRoster() {
     row.addEventListener('click', () => {
       audio();
       if (UI.pending && UI.pending.agent !== a) { const s = UI.pending.agent; UI.pending = null; tryBind(s, a); return; }
-      Director.follow(a); toast(`镜头跟随 ${a.name2} · 喜欢 ${a.likes.join('、')}`, 2.5);
+      Director.follow(a); toast(`Following ${a.name2} · likes ${a.likes.join(', ')}`, 2.5);
     });
-    row.title = `${a.name}，${a.age} 岁，${a.job}。喜欢：${a.likes.join('、')}。性格：${TEMPER_NAME[a.temper]}`;
+    row.title = `${a.name}, ${a.age}, ${a.job}. Likes: ${a.likes.join(', ')}. Temper: ${TEMPER_NAME[a.temper]}`;
     a.row = row; box.appendChild(row);
   }
 }
@@ -310,19 +310,19 @@ function refreshRoster() {
     a.row.querySelector('.st').textContent = describe(a);
     const c = a.couple, rel = a.row.querySelector('.rel');
     if (c) rel.innerHTML = `<span class="tag s${c.stage}">${c.stage >= 2 ? '❤️' : '🧶'} ${a.partner.id} ${a.partner.name} · ${STAGES[c.stage]}</span><span class="bar"><i style="width:${c.aff}%"></i></span>`;
-    else rel.innerHTML = a.heartbreakUntil > G.t ? '<span class="tag broken">💔 刚分手</span>' : a.exes.length ? `<span class="tag single">单身 · 前任 ${a.exes.join('、')}</span>` : '<span class="tag single">单身</span>';
+    else rel.innerHTML = a.heartbreakUntil > G.t ? '<span class="tag broken">💔 Just broke up</span>' : a.exes.length ? `<span class="tag single">Single · ex: ${a.exes.join(', ')}</span>` : '<span class="tag single">Single</span>';
     a.row.classList.toggle('sel', UI.pending && UI.pending.agent === a);
   }
   const cbox = $('#couples');
   const sig = G.couples.map(c => `${c.id}:${c.stage}:${Math.round(c.aff)}:${c.date ? 1 : 0}`).join('|');
   if (cbox.dataset.sig !== sig) {
     cbox.dataset.sig = sig;
-    cbox.innerHTML = G.couples.length ? '' : '<div class="empty">还没有红线。点（或捏）一个人，再点另一个人。</div>';
+    cbox.innerHTML = G.couples.length ? '' : '<div class="empty">No red threads yet. Click (or pinch) one person, then another.</div>';
     for (const c of G.couples) {
       const d = document.createElement('div'); d.className = 'couple';
       d.innerHTML = `<div><b style="background:${c.a.color}">${c.a.id}</b>${c.a.name} <span class="heart">${c.stage >= 2 ? '❤️' : '🧶'}</span> <b style="background:${c.b.color}">${c.b.id}</b>${c.b.name}</div>
-        <div class="meta">${STAGES[c.stage]} · 好感 ${Math.round(c.aff)} · 约会 ${c.dates} 次${c.date ? ` · 约了${whenStr(c.date.start)}` : ''}</div>
-        <div class="acts"><button class="watch">👀 看他们</button><button class="cut">✂️ 剪断红线</button></div>`;
+        <div class="meta">${STAGES[c.stage]} · affection ${Math.round(c.aff)} · ${c.dates} date${c.dates === 1 ? '' : 's'}${c.date ? ` · next date ${whenStr(c.date.start)}` : ''}</div>
+        <div class="acts"><button class="watch">👀 Watch them</button><button class="cut">✂️ Cut the thread</button></div>`;
       d.querySelector('.watch').onclick = () => { Director.follow(c.a, 12); };
       d.querySelector('.cut').onclick = () => { endCouple(c, 'cut'); };
       cbox.appendChild(d);
@@ -339,17 +339,17 @@ $('#camBtn').addEventListener('click', () => startCam());
 async function startCam() {
   audio();
   const HI = window.HandInput;
-  if (!HI) { toast('手势模块还没加载好，稍等一下再试'); return; }
+  if (!HI) { toast('Hand tracking is still loading. Try again in a moment.'); return; }
   document.body.classList.add('cam-on');
   $('#camBtn').classList.add('on');
   try {
     await HI.start(p => { $('#camStatus').textContent = p; });
-    $('#camStatus').textContent = '举起手 → 上帝视角。拇指和食指捏住一个小人，再捏另一个';
-    toast('摄像头开了！把手举到镜头前，用拇指和食指「捏」住小人', 4);
+    $('#camStatus').textContent = "Raise a hand for the bird's-eye view. Pinch one person with thumb and index finger, then another.";
+    toast("Camera's on! Hold a hand up and pinch a person with your thumb and index finger", 4);
   } catch (err) {
     console.error(err);
-    $('#camStatus').textContent = '摄像头打不开：' + (err && err.name === 'NotAllowedError' ? '没有给权限' : '这台设备不支持');
-    toast('摄像头打不开，可以先用鼠标或手指点小人来牵线', 4);
+    $('#camStatus').textContent = "Can't open the camera: " + (err && err.name === 'NotAllowedError' ? 'permission was denied' : 'not supported on this device');
+    toast("Can't open the camera. You can still click people to tie threads.", 4);
   }
 }
 
@@ -362,7 +362,7 @@ function drawOverlay(views, hands) {
     for (const v of views) {
       if (!v.who) continue;
       const txt = `📞 ${v.who.name2} · ${describe(v.who)}`;
-      c.font = '600 13px "PingFang SC","Microsoft YaHei",sans-serif';
+      c.font = '600 13px "Nunito","Segoe UI",system-ui,sans-serif';
       const w = c.measureText(txt).width + 20;
       c.fillStyle = 'rgba(0,0,0,.55)'; rr(c, v.x + 12, lb + 62, w, 26, 13); c.fill();
       c.fillStyle = '#fff'; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText(txt, v.x + 22, lb + 75);
@@ -372,7 +372,7 @@ function drawOverlay(views, hands) {
   // 镜头说明
   const cap = D.caption();
   if (cap) {
-    c.font = '600 14px "PingFang SC","Microsoft YaHei",sans-serif';
+    c.font = '600 14px "Nunito","Segoe UI",system-ui,sans-serif';
     const tw = Math.min(c.measureText(cap).width, SW_ - 40);
     const y = SH_ - Math.max(lb, 0) - (lb > 8 ? -lb / 2 : 26);
     if (lb <= 8) { c.fillStyle = 'rgba(15,15,25,.6)'; rr(c, SW_ / 2 - tw / 2 - 14, y - 14, tw + 28, 28, 14); c.fill(); }
@@ -382,7 +382,7 @@ function drawOverlay(views, hands) {
   if (D.sub) {
     const s = D.sub, a = clamp(Math.min(s.t / 0.2, (s.dur - s.t) / 0.3), 0, 1);
     c.globalAlpha = a;
-    c.font = 'italic 600 17px "PingFang SC","Microsoft YaHei",serif';
+    c.font = 'italic 600 17px "Nunito","Segoe UI",system-ui,sans-serif';
     const lines = wrapText(c, s.text, Math.min(560, SW_ - 60));
     const y0 = SH_ - lb - 70 - (lines.length - 1) * 22;
     lines.forEach((l, i) => { c.textAlign = 'center'; c.strokeStyle = 'rgba(0,0,0,.75)'; c.lineWidth = 4; c.strokeText(l, SW_ / 2, y0 + i * 22); c.fillStyle = '#fff6d6'; c.fillText(l, SW_ / 2, y0 + i * 22); });
@@ -392,9 +392,9 @@ function drawOverlay(views, hands) {
   if (cd) {
     const a = clamp(Math.min(cd.t / 0.35, (cd.dur - cd.t) / 0.5), 0, 1), sc = 0.9 + 0.1 * clamp(cd.t / 0.35, 0, 1);
     c.save(); c.globalAlpha = a; c.translate(SW_ / 2, SH_ * 0.36); c.scale(sc, sc);
-    c.font = '900 40px "PingFang SC","Microsoft YaHei",sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = '900 40px "Nunito","Segoe UI",system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.lineWidth = 8; c.strokeStyle = 'rgba(80,0,20,.55)'; c.strokeText(cd.title, 0, 0); c.fillStyle = '#fff'; c.fillText(cd.title, 0, 0);
-    c.font = '600 16px "PingFang SC","Microsoft YaHei",sans-serif'; c.lineWidth = 4; c.strokeText(cd.sub, 0, 40); c.fillStyle = '#ffe3ea'; c.fillText(cd.sub, 0, 40);
+    c.font = '600 16px "Nunito","Segoe UI",system-ui,sans-serif'; c.lineWidth = 4; c.strokeText(cd.sub, 0, 40); c.fillStyle = '#ffe3ea'; c.fillText(cd.sub, 0, 40);
     c.restore();
   }
   // 正在牵的线
@@ -420,8 +420,8 @@ function drawOverlay(views, hands) {
     if (hov) { c.font = '600 12px sans-serif'; c.fillStyle = '#fff'; c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 3; c.strokeText(hov.name2, h.x, h.y + 30); c.fillText(hov.name2, h.x, h.y + 30); }
   }
   if (D.god && hands.length) {
-    const t = '🖐 上帝视角 · 拇指和食指捏住一个人，再捏另一个人 = 牵红线 · 把手放下继续看剧情';
-    c.font = '600 14px "PingFang SC","Microsoft YaHei",sans-serif';
+    const t = "🖐 Bird's-eye view · pinch one person, then another = red thread · lower your hand to keep watching";
+    c.font = '600 14px "Nunito","Segoe UI",system-ui,sans-serif';
     const w = Math.min(c.measureText(t).width + 30, SW_ - 20);
     c.fillStyle = 'rgba(180,10,40,.82)'; rr(c, SW_ / 2 - w / 2, SH_ - 54, w, 32, 16); c.fill();
     c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText(t, SW_ / 2, SH_ - 38, SW_ - 40);
@@ -464,8 +464,8 @@ function ambient(dt) {
 }
 function weather() {
   if (G.t < G.nextWeather) return;
-  if (G.rain) { G.rain = false; G.nextWeather = G.t + rand(300, 1100); log('🌤 雨停了'); }
-  else if (Math.random() < 0.35) { G.rain = true; G.nextWeather = G.t + rand(60, 200); log('🌧 下雨了'); }
+  if (G.rain) { G.rain = false; G.nextWeather = G.t + rand(300, 1100); log('🌤 The rain stopped'); }
+  else if (Math.random() < 0.35) { G.rain = true; G.nextWeather = G.t + rand(60, 200); log('🌧 It started raining'); }
   else G.nextWeather = G.t + rand(240, 700);
 }
 
@@ -490,7 +490,7 @@ function frame(now) {
     }
     for (const c of G.couples.slice()) c.tick();
     weather();
-    if (day() !== lastDay) { lastDay = day(); log(`🌅 第 ${day() + 1} 天（${WEEK[day() % 7]}）开始了`); for (const a of G.agents) for (const k in a.plans) if (+k < day() - 1) delete a.plans[k]; }
+    if (day() !== lastDay) { lastDay = day(); log(`🌅 Day ${day() + 1} (${WEEK[day() % 7]}) begins`); for (const a of G.agents) for (const k in a.plans) if (+k < day() - 1) delete a.plans[k]; }
     for (const s of G.scenes) s.update(dt);
     G.scenes = G.scenes.filter(s => !s.done);
     ambient(dt);
@@ -519,7 +519,7 @@ function frame(now) {
     rosterT = 0.5; refreshRoster();
     document.body.classList.toggle('has-couple', G.couples.length > 0);
     const n = nightAmt();
-    $('#clock').innerHTML = `第 ${day() + 1} 天 · ${WEEK[day() % 7]} <b>${clockStr()}</b> ${G.rain ? '🌧' : n > 0.5 ? '🌙' : '☀️'}`;
+    $('#clock').innerHTML = `Day ${day() + 1} · ${WEEK[day() % 7]} <b>${clockStr()}</b> ${G.rain ? '🌧' : n > 0.5 ? '🌙' : '☀️'}`;
   }
   requestAnimationFrame(frame);
 }
@@ -532,7 +532,7 @@ function boot() {
   // 先跑一会儿，让大家散开到各自的位置
   for (let i = 0; i < 60; i++) { G.t += 0.5; for (const a of G.agents) a.update(0.5); for (const c of G.cars) c.update(0.5); }
   buildRoster(); refreshRoster();
-  log('🏙 红线小镇的早晨。26 个人各忙各的，等着你来牵红线。');
+  log('🏙 Morning in Red Thread Town. 26 people go about their day, waiting for you to tie some red threads.');
   Director.cam.z = fitZoom({ w: SW_, h: SH_ });
   requestAnimationFrame(frame);
 }

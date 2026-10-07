@@ -23,16 +23,14 @@ const G = {
 };
 const day = () => Math.floor(G.t / 1440);
 const tod = () => G.t - day() * 1440;
-const WEEK = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 function clockStr(t = G.t) {
   const d = Math.floor(t / 1440), m = Math.floor(t - d * 1440);
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 function whenStr(t) {
   const dd = Math.floor(t / 1440) - day();
-  const h = (t % 1440) / 60;
-  const part = h < 11 ? '上午' : h < 13 ? '中午' : h < 18 ? '下午' : '晚上';
-  return `${dd === 0 ? '今天' : dd === 1 ? '明天' : '后天'}${part} ${clockStr(t)}`;
+  return `${dd === 0 ? 'today' : dd === 1 ? 'tomorrow' : 'the day after tomorrow'} at ${clockStr(t)}`;
 }
 
 /* ---------------- 路网 ---------------- */
@@ -145,10 +143,10 @@ LOC.park.pond = { ...rel('park', 175, 185), rx: 70, ry: 48 };
 LOC.fun.wheel = rel('fun', 300, 125);
 LOC.fun.carousel = rel('fun', 110, 245);
 // 虚拟地点
-LOC.corner = { id: 'corner', name: '光明路口', kind: 'point', inside: new Set(), pairs: [], singles: [], named: { post: { x: ROAD_X[2] + 36, y: ROAD_Y[1] + 36 } } };
+LOC.corner = { id: 'corner', name: 'Bright St. Crossing', kind: 'point', inside: new Set(), pairs: [], singles: [], named: { post: { x: ROAD_X[2] + 36, y: ROAD_Y[1] + 36 } } };
 LOC.corner.access = { x: ROAD_X[2] + SW, y: ROAD_Y[1] + SW }; LOC.corner.door = LOC.corner.named.post; LOC.corner.center = LOC.corner.door;
-LOC.road = { id: 'road', name: '路上', kind: 'virtual', inside: new Set(), pairs: [], singles: [], named: {} };
-LOC.city = { id: 'city', name: '城里', kind: 'virtual', inside: new Set(), pairs: [], singles: [], named: {} };
+LOC.road = { id: 'road', name: 'the road', kind: 'virtual', inside: new Set(), pairs: [], singles: [], named: {} };
+LOC.city = { id: 'city', name: 'town', kind: 'virtual', inside: new Set(), pairs: [], singles: [], named: {} };
 const BUILDINGS = LOC_DEFS.map(d => LOC[d.id]);
 const ROAM_TARGETS = BUILDINGS.filter(L => L.kind !== 'area' && !['fy1', 'fy2', 'fy3', 'fy4', 'wt1', 'wt2', 'wt3', 'wt4'].includes(L.id));
 const locName = id => (LOC[id] ? LOC[id].name : id);
@@ -286,13 +284,13 @@ class Agent {
     const dow = d % 7, workday = w.days === 'all' ? Math.random() > 0.08 : dow < 5;
     const wake = this.wake + rand(-0.3, 0.3);
     const lastH = Math.min(this.sleep < 6 ? 23.6 : this.sleep, 23.6) + rand(-0.3, 0.2);
-    const home = (s, e, act = 'home') => items.push({ start: H(s), end: H(e), loc: this.home, act, mode: 'inside', label: act === 'sleep' ? '睡觉' : pick(['在家休息', '在家追剧', '在家做饭', '在家发呆']) });
+    const home = (s, e, act = 'home') => items.push({ start: H(s), end: H(e), loc: this.home, act, mode: 'inside', label: act === 'sleep' ? 'sleeping' : pick(['relaxing at home', 'binge-watching at home', 'cooking at home', 'zoning out at home']) });
     home(0, wake, 'sleep');
     let cur = wake;
     const hobby = (s, e) => {
       let [loc, label, mode] = HOBBY_PLACES[pick(this.likes)];
-      if (Math.random() < 0.18) [loc, label, mode] = pick([['shop', '买零食', 'inside'], ['market', '买菜', 'inside'], ['park', '散步', 'wander'], ['cafe', '喝咖啡', 'spot']]);
-      if (loc === this.work.loc && workday) [loc, label, mode] = ['park', '散步', 'wander'];
+      if (Math.random() < 0.18) [loc, label, mode] = pick([['shop', 'buying snacks', 'inside'], ['market', 'buying groceries', 'inside'], ['park', 'taking a walk', 'wander'], ['cafe', 'having coffee', 'spot']]);
+      if (loc === this.work.loc && workday) [loc, label, mode] = ['park', 'taking a walk', 'wander'];
       items.push({ start: H(s), end: H(e), loc, act: 'fun', mode, label });
     };
     if (workday) {
@@ -302,7 +300,7 @@ class Agent {
         const wl = LOC[w.loc] && LOC[w.loc].door ? LOC[w.loc].door : LOC.cafe.door;
         const [lloc, lmode] = pick([['cafe', 'spot'], ['hotpot', 'inside'], ['shop', 'inside'], ['market', 'inside']].sort((p, q) => manh(LOC[p[0]].door, wl) - manh(LOC[q[0]].door, wl)).slice(0, 2));
         items.push({ ...job, start: H(ws), end: H(12) });
-        items.push({ start: H(12.05), end: H(12.9), loc: lloc, act: 'lunch', mode: lmode, label: '吃午饭' });
+        items.push({ start: H(12.05), end: H(12.9), loc: lloc, act: 'lunch', mode: lmode, label: 'having lunch' });
         items.push({ ...job, start: H(12.95), end: H(we) });
       } else items.push({ ...job, start: H(ws), end: H(we) });
       if (ws - cur > 2.2 && Math.random() < 0.35) hobby(cur + 0.4, Math.min(cur + 1.6, ws - 0.6));
@@ -320,13 +318,13 @@ class Agent {
     for (const it of items) {
       if (it.start < t) it.start = t;
       if (it.end <= it.start) continue;
-      if (it.start - t > 45) out.push({ start: t, end: it.start, loc: this.home, act: 'home', mode: 'inside', label: '在家休息' });
+      if (it.start - t > 45) out.push({ start: t, end: it.start, loc: this.home, act: 'home', mode: 'inside', label: 'relaxing at home' });
       else if (out.length) out[out.length - 1].end = it.start;
       else it.start = t;
       out.push(it); t = it.end;
     }
-    if (t < H(lastH)) { out.push({ start: t, end: H(lastH), loc: this.home, act: 'home', mode: 'inside', label: '在家休息' }); t = H(lastH); }
-    out.push({ start: t, end: D + 1440, loc: this.home, act: 'sleep', mode: 'inside', label: '睡觉' });
+    if (t < H(lastH)) { out.push({ start: t, end: H(lastH), loc: this.home, act: 'home', mode: 'inside', label: 'relaxing at home' }); t = H(lastH); }
+    out.push({ start: t, end: D + 1440, loc: this.home, act: 'sleep', mode: 'inside', label: 'sleeping' });
     // 结婚后会搬家：home 用最新的
     this.plans[d] = out;
     return out;
@@ -482,7 +480,7 @@ class Agent {
   boardTaxi() {
     const car = this.car; this.trip = null; this.driving = true; this.inCar = car; this.at = 'road';
     car.state = 'roam'; car.offDuty = false; car.path = null; car.park = null; this.wantHome = false;
-    log(`🚕 ${this.name2} 开着出租车出车了`);
+    log(`🚕 ${this.name2} starts a taxi shift`);
   }
   driveTick() {
     const p = this.car.lanePos(); this.x = p.x; this.y = p.y; this.moving = false;
@@ -527,7 +525,7 @@ class Agent {
       this.trip = null;
       if (done) {
         this.pauseT = rand(5, 12);
-        if (this.id === 'I') this.say(pick(['您的外卖到了！', '外卖！麻烦给个五星！', `${this.roamTo.L.name}的外卖！`]), 2.6);
+        if (this.id === 'I') this.say(pick(['Your food is here!', 'Delivery! Five stars, please!', `Delivery for ${this.roamTo.L.name}!`]), 2.6);
         this.roamTo = null;
       }
     }
@@ -551,7 +549,7 @@ function compat(a, b) {
   const key = [a.temper, b.temper].sort().join('-');
   return shared * 0.6 + (TEMPER_MATCH[key] || 0) + (a.temper === 'warm' || b.temper === 'warm' ? 0.15 : 0);
 }
-const STAGES = ['刚牵线', '暧昧中', '恋爱中', '已结婚'];
+const STAGES = ['Just tied', 'Flirting', 'Dating', 'Married'];
 let coupleSeq = 0;
 class Couple {
   constructor(a, b) {
@@ -632,12 +630,12 @@ function scheduleDate(c, venue) {
       for (const [x, y] of [[c.a, c.b], [c.b, c.a]]) if (!found && freeAt(x, s - 15, s + 130, true) && freeAt(y, s - 15, s + 130)) { found = s; skipper = x; }
     }
   }
-  if (!found) { log(`📅 ${c.a.name2} 和 ${c.b.name2} 想约会，可惜两个人都太忙，约不上`); return; }
-  if (skipper) log(`🙈 ${skipper.name2} 决定翘班去约会`);
-  const item = who => ({ start: found, end: found + 170, loc: venue, act: 'date', mode: 'date', couple: c, label: `和 ${c.other(who).name} 约会` });
+  if (!found) { log(`📅 ${c.a.name2} and ${c.b.name2} want a date, but they're both too busy`); return; }
+  if (skipper) log(`🙈 ${skipper.name2} is skipping work for a date`);
+  const item = who => ({ start: found, end: found + 170, loc: venue, act: 'date', mode: 'date', couple: c, label: `on a date with ${c.other(who).name}` });
   c.a.extras.push(item(c.a)); c.b.extras.push(item(c.b));
   c.date = { start: found, loc: venue };
-  log(`📅 ${c.a.name2} 和 ${c.b.name2} 约好${whenStr(found)}在「${locName(venue)}」${VENUES[venue].verb}`);
+  log(`📅 ${c.a.name2} and ${c.b.name2} will ${VENUES[venue].verb} at ${locName(venue)} ${whenStr(found)}`);
 }
 
 /* ---------------- 剧情（对话序列） ---------------- */
@@ -657,8 +655,9 @@ class Scene {
     const ln = this.lines[this.i];
     if (!ln) { this.end(); return; }
     this.said = this.said || new Set();
-    if (ln.who && this.said.has(ln.text)) ln.text = pick(['我也是！', '嗯嗯，同感。', '哈哈，一样一样。', '我刚想这么说！', '你学我说话！']);
+    if (ln.who && this.said.has(ln.text)) ln.text = pick(['Me too!', 'Same here!', 'Haha, same!', 'Ditto!']);
     this.said.add(ln.text);
+    ln.text = ln.text.replace(/(^|[!?] )([a-z])/g, (m, p, ch) => p + ch.toUpperCase());   // a topic word can start a sentence
     const dur = ln.dur || clamp(1.3 + ln.text.length * 0.1, 1.8, 5);
     if (ln.who) ln.who.say(ln.text, dur + 0.3, this.kind === 'call' || this.phone ? 'phone' : 'say');
     else Director.subtitle(ln.text, dur + 0.2);
@@ -696,7 +695,7 @@ function startCall(c) {
     lines.push({ who: A, text: fillT(pick(L.fightStart), v), sfx: 'bad' });
     const soft = ['warm', 'shy'].includes(B.temper);
     lines.push({ who: B, text: T_(L.fightBack, B, v), fx: () => c.bump(soft ? -rand(2, 5) : -rand(7, 13), A) });
-    lines.push({ who: A, text: soft ? '……算了，我也有不对。' : pick(['哼！', '你自己好好想想吧！', '挂了！']) });
+    lines.push({ who: A, text: soft ? "...Fine. I wasn't perfect either." : pick(['Hmph!', 'Think about what you did!', "I'm hanging up!"]) });
   } else {
     lines.push({ who: A, text: fillT(pick(L.callHi), v) });
     lines.push({ who: B, text: fillT(pick(L.callStatus), { s: statusPhrase(B) }) });
@@ -712,9 +711,9 @@ function startCall(c) {
   c.calls++;
   A.onPhone = B.onPhone = true;
   sfx('ring');
-  log(kind === 'fight' ? `📞 ${A.name2} 打电话给 ${B.name2}……吵起来了` : `📞 ${A.name2} 打电话给 ${B.name2}`);
+  log(kind === 'fight' ? `📞 ${A.name2} calls ${B.name2}... and they fight` : `📞 ${A.name2} calls ${B.name2}`);
   runScene(new Scene(kind === 'fight' ? 'call' : 'call', c, lines, {
-    title: kind === 'fight' ? '电话里吵架了' : c.calls === 1 ? '第一通电话' : '煲电话粥', A, B, phone: true,
+    title: kind === 'fight' ? 'Fighting on the phone' : c.calls === 1 ? 'The first call' : 'A long phone chat', A, B, phone: true,
     onEnd() {
       A.onPhone = B.onPhone = false;
       c.nextCall = G.t + [rand(240, 600), rand(200, 520), rand(160, 420), rand(300, 700)][c.stage];
@@ -723,9 +722,9 @@ function startCall(c) {
   }));
 }
 function statusPhrase(a) {
-  if (a.trip) return '在路上';
-  const g = a.goal; if (!g) return '发呆';
-  if (g.act === 'home') return '在家躺着';
+  if (a.trip) return 'on my way';
+  const g = a.goal; if (!g) return 'spacing out';
+  if (g.act === 'home') return 'lying around at home';
   return g.label;
 }
 function startDateScene(c) {
@@ -767,9 +766,9 @@ function startDateScene(c) {
     lines.push({ who: null, text: fillT(inc.text, { a: s1.name, b: c.other(s1).name, x: x.name }), fx: () => c.bump(d, s1) });
   }
   if (c.aff < 45 && Math.random() < 0.5) lines.push({ who: pick([a, b]), text: pick(L.awkward), fx: () => c.bump(-2) });
-  log(`💞 ${a.name2} 和 ${b.name2} 在「${locName(venue)}」第 ${n} 次约会`);
+  log(`💞 ${a.name2} and ${b.name2}: date #${n} at ${locName(venue)}`);
   runScene(new Scene('date', c, lines, {
-    title: `第 ${n} 次约会 · ${locName(venue)}`,
+    title: `Date #${n} · ${locName(venue)}`,
     drain() { return dateEnding(c); },
     onEnd() {
       a.lock = b.lock = null; c.dates++;
@@ -789,21 +788,21 @@ function dateEnding(c) {
     return out;
   }
   if (c.stage === 0 && c.aff >= 55) {
-    out.push({ who: null, text: '（两个人之间的空气好像有点不一样了……）', fx: () => { c.stage = 1; Director.card('💗 暧昧中', `${a.name2} ✕ ${b.name2}`); log(`💗 ${a.name2} 和 ${b.name2} 开始暧昧了`); sfx('heart'); } });
+    out.push({ who: null, text: '(Something in the air between them has changed...)', fx: () => { c.stage = 1; Director.card('💗 Flirting', `${a.name2} ✕ ${b.name2}`); log(`💗 ${a.name2} and ${b.name2} are starting to flirt`); sfx('heart'); } });
   } else if (c.stage === 1 && c.aff >= 68 && c.dates >= 1) {
     const ok = Math.random() < (c.aff - 40) / 40;
     out.push({ who: conf, text: T_(L.confess, conf, { b: oth.name }), sfx: 'heart' });
     out.push({
       who: oth, text: T_(ok ? L.accept : L.reject, oth, {}),
       fx: () => {
-        if (ok) { c.stage = 2; c.bump(8, conf); Director.card('❤️ 在一起了！', `${conf.name2} 表白成功`); log(`❤️ ${conf.name2} 向 ${oth.name2} 表白——成功了！`); sfx('love'); burstHearts(conf, oth); }
-        else { c.bump(-14, conf); Director.card('💧 表白被拒', `${oth.name2}：「我们还是做朋友吧」`); log(`💧 ${conf.name2} 向 ${oth.name2} 表白，被拒绝了`); sfx('bad'); }
+        if (ok) { c.stage = 2; c.bump(8, conf); Director.card('❤️ Together!', `${conf.name2} confessed, and it worked`); log(`❤️ ${conf.name2} confessed to ${oth.name2}, and it worked!`); sfx('love'); burstHearts(conf, oth); }
+        else { c.bump(-14, conf); Director.card('💧 Turned down', `${oth.name2}: "Let's just be friends."`); log(`💧 ${conf.name2} confessed to ${oth.name2} and was turned down`); sfx('bad'); }
       },
     });
   } else if (c.stage === 2 && c.aff >= 86 && c.dates >= 4 && Math.random() < 0.55) {
-    out.push({ who: null, text: `（${conf.name} 单膝跪下，掏出了一个小盒子）` });
+    out.push({ who: null, text: `(${conf.name} kneels down and pulls out a little box)` });
     out.push({ who: conf, text: fillT(pick(L.propose), { b: oth.name }), sfx: 'heart' });
-    out.push({ who: oth, text: pick(L.wed), fx: () => { c.stage = 3; marry(c); Director.card('💒 结婚啦！', `${a.name2} ❤ ${b.name2}`); log(`💒 ${a.name2} 和 ${b.name2} 结婚了！搬到一起住`); sfx('love'); burstHearts(a, b, 40); } });
+    out.push({ who: oth, text: pick(L.wed), fx: () => { c.stage = 3; marry(c); Director.card('💒 Just married!', `${a.name2} ❤ ${b.name2}`); log(`💒 ${a.name2} and ${b.name2} got married and moved in together!`); sfx('love'); burstHearts(a, b, 40); } });
   }
   const good = c.aff >= 42;
   out.push({ who: a, text: T_(good ? L.byeGood : L.byeBad, a, {}) });
@@ -820,10 +819,10 @@ function startStoodUp(c, waiting) {
   waiting.lock = 'date';
   const lines = [
     { who: waiting, text: fillT(pick(L.stoodUp), { b: other.name }) },
-    { who: waiting, text: '算了，我走了。', fx: () => c.bump(-rand(10, 16), waiting) },
+    { who: waiting, text: "Forget it, I'm leaving.", fx: () => c.bump(-rand(10, 16), waiting) },
   ];
-  log(`⏰ ${other.name2} 放了 ${waiting.name2} 的鸽子`);
-  runScene(new Scene('stood', c, lines, { title: '被放鸽子了', A: waiting, onEnd() { waiting.lock = null; c.clearDate(); c.nextCall = G.t + rand(60, 200); } }));
+  log(`⏰ ${other.name2} stood up ${waiting.name2}`);
+  runScene(new Scene('stood', c, lines, { title: 'Stood up', A: waiting, onEnd() { waiting.lock = null; c.clearDate(); c.nextCall = G.t + rand(60, 200); } }));
 }
 function startBreakup(c) {
   const { a, b } = c;
@@ -837,7 +836,7 @@ function startBreakup(c) {
     { who: B, text: pick(L.breakupReply) },
   ];
   runScene(new Scene(near ? 'breakup' : 'call', c, lines, {
-    title: near ? '要分手了……' : '电话分手', A, B, phone: !near, prio: 4,
+    title: near ? 'About to break up...' : 'Breaking up by phone', A, B, phone: !near, prio: 4,
     onEnd() { A.onPhone = B.onPhone = false; endCouple(c, 'breakup', A); },
   }));
 }
@@ -853,14 +852,14 @@ function endCouple(c, why, who) {
   }
   G.couples = G.couples.filter(x => x !== c);
   sfx('snap');
-  if (why === 'cut') { Director.card('✂️ 红线剪断了', `${a.name2} 和 ${b.name2} 又是单身了`); log(`✂️ 你剪断了 ${a.name2} 和 ${b.name2} 的红线`); }
-  else { Director.card('💔 分手了', `${a.name2} 和 ${b.name2} · 可以重新牵线`); log(`💔 ${(who || a).name2} 和 ${c.other(who || a).name2} 分手了。两人都恢复单身，可以重新牵线`); }
+  if (why === 'cut') { Director.card('✂️ Thread cut', `${a.name2} and ${b.name2} are single again`); log(`✂️ You cut the red thread between ${a.name2} and ${b.name2}`); }
+  else { Director.card('💔 Broke up', `${a.name2} and ${b.name2} · free to pair again`); log(`💔 ${(who || a).name2} and ${c.other(who || a).name2} broke up. Both are single and can be paired again`); }
 }
 function tryBind(a, b) {
   if (a === b) return false;
   if (a.partner || b.partner) {
     const t = a.partner ? a : b;
-    toast(`${t.name2} 已经和 ${t.partner.name2} 牵着红线了。在右边名单里可以剪断。`);
+    toast(`${t.name2} is already tied to ${t.partner.name2}. You can cut that thread in the list on the right.`);
     sfx('bad');
     return false;
   }
@@ -868,9 +867,9 @@ function tryBind(a, b) {
   G.couples.push(c);
   G.binds = G.binds || []; G.binds.push({ c, t: 0 });
   sfx('bind');
-  Director.card('🧶 红线已系上', `${a.name2} ❤ ${b.name2} · 相性 ${'★'.repeat(c.stars())}${'☆'.repeat(5 - c.stars())}`);
-  Director.offer({ kind: 'bind', c, A: a, B: b, prio: 5, dur: 4.5, title: '月老牵线' });
-  log(`🧶 你给 ${a.name2} 和 ${b.name2} 系上了红线（相性 ${'★'.repeat(c.stars())}）`);
+  Director.card('🧶 Red thread tied', `${a.name2} ❤ ${b.name2} · match ${'★'.repeat(c.stars())}${'☆'.repeat(5 - c.stars())}`);
+  Director.offer({ kind: 'bind', c, A: a, B: b, prio: 5, dur: 4.5, title: 'Matchmaker at work' });
+  log(`🧶 You tied a red thread between ${a.name2} and ${b.name2} (match ${'★'.repeat(c.stars())})`);
   return true;
 }
 function burstHearts(a, b, n = 20) {
@@ -880,7 +879,7 @@ function burstHearts(a, b, n = 20) {
 
 /* ---------------- 日志 ---------------- */
 function log(html) {
-  G.log.unshift({ time: `第${day() + 1}天 ${clockStr()}`, html });
+  G.log.unshift({ time: `Day ${day() + 1} ${clockStr()}`, html });
   if (G.log.length > 80) G.log.pop();
   if (typeof onLog === 'function') onLog();
 }
@@ -890,29 +889,29 @@ function describe(a) {
   const c = a.couple;
   if (c && c.scene && !c.scene.done) {
     const k = c.scene.kind;
-    if (k === 'date') return `正在和 ${a.partner.name} 约会`;
-    if (k === 'breakup') return `正在和 ${a.partner.name} 吵架`;
-    if (k === 'call') return `正在和 ${a.partner.name} 打电话`;
-    if (k === 'stood') return '等人等到生气';
+    if (k === 'date') return `on a date with ${a.partner.name}`;
+    if (k === 'breakup') return `arguing with ${a.partner.name}`;
+    if (k === 'call') return `on the phone with ${a.partner.name}`;
+    if (k === 'stood') return 'fuming after being stood up';
   }
   if (a.driving) {
     const f = a.car.passenger;
-    return f && a.car.state === 'carry' ? `开出租车，载着 ${f.name2}` : f ? `开车去接 ${f.name2}` : '开着出租车满城跑';
+    return f && a.car.state === 'carry' ? `driving a taxi with ${f.name2} in the back` : f ? `on the way to pick up ${f.name2}` : 'cruising around in the taxi';
   }
   const g = a.goal;
-  if (!g) return '发呆';
+  if (!g) return 'spacing out';
   const where = locName(g.loc);
   const T = a.trip;
   if (T) {
-    const to = isHome(g.loc) ? '回家' : `去${where}${g.act === 'date' ? '约会' : g.label || ''}`;
-    if (T.stage === 'wait') return `在路边等出租车，要${to}`;
-    if (T.stage === 'ride') return T.mode === 'car' ? `开车${to}` : `坐出租车${to}`;
-    if (T.toTaxi) return '走去开出租车';
-    return `${T.mode === 'bike' ? '骑车' : '走路'}${to}`;
+    const to = isHome(g.loc) ? 'home' : `to ${where}${g.act === 'date' ? ' for a date' : g.act === 'lunch' ? ' for lunch' : ''}`;
+    if (T.stage === 'wait') return `hailing a taxi to go ${to}`;
+    if (T.stage === 'ride') return T.mode === 'car' ? `driving ${to}` : `taking a taxi ${to}`;
+    if (T.toTaxi) return 'walking to the taxi';
+    return `${T.mode === 'bike' ? 'cycling' : 'walking'} ${to}`;
   }
   if (g.mode === 'roam') return g.label;
-  if (g.act === 'sleep') return '在家睡觉 💤';
+  if (g.act === 'sleep') return 'asleep at home 💤';
   if (g.act === 'home') return g.label;
-  if (g.act === 'date') return `在${where}等 ${a.partner ? a.partner.name : '某人'}`;
-  return `在${where}${g.label}`;
+  if (g.act === 'date') return `at ${where}, waiting for ${a.partner ? a.partner.name : 'someone'}`;
+  return `${g.label} at ${where}`;
 }

@@ -137,7 +137,7 @@ function drawLamp(c, l) {
   c.fillStyle = '#fff3c4'; circ(c, l.x, l.y - 17, 2.4); c.fill();
 }
 function signText(c, text, x, y, size, color = '#fff', bg = 'rgba(0,0,0,.45)') {
-  c.font = `bold ${size}px "PingFang SC","Microsoft YaHei",sans-serif`;
+  c.font = `bold ${size}px "Nunito","Segoe UI",system-ui,sans-serif`;
   const w = c.measureText(text).width;
   c.fillStyle = bg; rr(c, x - w / 2 - 4, y - size * 0.75, w + 8, size * 1.35, 3); c.fill();
   c.fillStyle = color; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, x, y);
@@ -187,7 +187,7 @@ function drawBuilding(c, L) {
   if (T === 'hotpot') { for (const dx of [-30, 30]) { c.fillStyle = '#e53935'; ell(c, cx + dx, L.y + roofH + 14, 5, 7); c.fill(); c.fillStyle = '#ffd54f'; c.fillRect(cx + dx - 1, L.y + roofH + 20, 2, 4); } }
   if (T === 'fire') { const y = L.y + L.h + 6; c.fillStyle = '#d32f2f'; rr(c, L.x + 6, y, 54, 22, 3); c.fill(); c.fillStyle = '#90caf9'; c.fillRect(L.x + 44, y + 3, 12, 8); c.fillStyle = '#eee'; c.fillRect(L.x + 8, y + 2, 34, 3); c.fillStyle = '#222'; circ(c, L.x + 16, y + 22, 4); c.fill(); circ(c, L.x + 48, y + 22, 4); c.fill(); }
   if (T === 'studio') { c.fillStyle = L.roof; c.beginPath(); c.moveTo(L.x + 20, L.y); c.lineTo(L.x + 34, L.y - 18); c.lineTo(L.x + 48, L.y); c.moveTo(L.x + L.w - 48, L.y); c.lineTo(L.x + L.w - 34, L.y - 18); c.lineTo(L.x + L.w - 20, L.y); c.fill(); }
-  if (T === 'mall') { c.fillStyle = '#ffd166'; for (let i = 0; i < 8; i++) { circ(c, L.x + 20 + i * ((L.w - 40) / 7), L.y + roofH + 6, 2.2); c.fill(); } c.fillStyle = '#a23e72'; rr(c, L.named.door.x + 30, L.y + L.h + 26, 26, 20, 3); c.fill(); signText(c, '售票', L.named.door.x + 43, L.y + L.h + 36, 7, '#fff', 'rgba(0,0,0,0)'); }
+  if (T === 'mall') { c.fillStyle = '#ffd166'; for (let i = 0; i < 8; i++) { circ(c, L.x + 20 + i * ((L.w - 40) / 7), L.y + roofH + 6, 2.2); c.fill(); } c.fillStyle = '#a23e72'; rr(c, L.named.door.x + 30, L.y + L.h + 26, 26, 20, 3); c.fill(); signText(c, 'TICKETS', L.named.door.x + 43, L.y + L.h + 36, 7, '#fff', 'rgba(0,0,0,0)'); }
   if (T === 'gym') { c.fillStyle = '#444'; c.fillRect(cx - 16, ry - 2, 32, 4); c.fillRect(cx - 20, ry - 8, 6, 16); c.fillRect(cx + 14, ry - 8, 6, 16); c.fillStyle = '#4caf50'; c.fillRect(L.x + 10, L.y + L.h + 18, 50, 26); }
   if (T === 'flower') { for (let i = 0; i < 6; i++) { const x = L.x + 12 + i * 20, y = L.y - 18; c.fillStyle = '#795548'; c.fillRect(x - 5, y, 10, 8); c.fillStyle = ['#e91e63', '#ffeb3b', '#ff5722', '#9c27b0', '#fff', '#f06292'][i]; circ(c, x - 3, y - 2, 3); c.fill(); circ(c, x + 3, y - 1, 3); c.fill(); circ(c, x, y - 5, 3); c.fill(); } }
   if (T === 'market') { for (let i = 0; i < 3; i++) { const x = L.x + L.w - 30 - i * 14, y = L.y - 22; c.strokeStyle = '#90a4ae'; c.lineWidth = 1.5; c.strokeRect(x, y, 10, 7); } }
@@ -218,7 +218,7 @@ function drawPark(c, L) {
   // 入口
   c.fillStyle = '#6d4c41'; c.fillRect(bx + 412, by + 160, 6, 10); c.fillRect(bx + 412, by + 190, 6, 10);
   drawSeatsAndTables(c, L);
-  signText(c, '🌳 中央公园', bx + 210, by + 20, 12);
+  signText(c, '🌳 Central Park', bx + 210, by + 20, 12);
 }
 function drawFun(c, L) {
   const bx = L.bx, by = L.by, t = G.realT;
@@ -253,7 +253,7 @@ function drawFun(c, L) {
   // 气球
   for (let i = 0; i < 4; i++) { const x = bx + 60 + i * 9, y = by + 300 + Math.sin(t * 1.5 + i) * 3; c.strokeStyle = '#999'; c.beginPath(); c.moveTo(x, y); c.lineTo(bx + 72, by + 330); c.stroke(); c.fillStyle = cols[i + 2]; ell(c, x, y, 5, 6); c.fill(); }
   drawSeatsAndTables(c, L);
-  signText(c, '🎡 欢乐游乐园', bx + 210, by + 30, 12);
+  signText(c, '🎡 Funland', bx + 210, by + 30, 12);
 }
 
 /* ---------- 小人 ---------- */
@@ -278,7 +278,7 @@ function drawPerson(c, a, x, y, o = {}) {
   const acc = lk.acc || [];
   // 背后的东西
   if (acc.includes('backpack')) { c.fillStyle = '#c0392b'; rr(c, -tw - 3.5, shY + 1, 5, 8, 2); c.fill(); }
-  if (acc.includes('box')) { c.fillStyle = '#ffd400'; c.fillRect(-tw - 8, shY - 4, 9, 11); c.fillStyle = '#333'; c.font = 'bold 4px sans-serif'; c.fillText('外卖', -tw - 7.5, shY + 3); }
+  if (acc.includes('box')) { c.fillStyle = '#ffd400'; c.fillRect(-tw - 8, shY - 4, 9, 11); c.fillStyle = '#333'; c.font = 'bold 3px sans-serif'; c.fillText('FOOD', -tw - 7.5, shY + 3); }
   if (acc.includes('guitar') && pose !== 'guitar') { c.fillStyle = '#8d5524'; c.save(); c.translate(-tw - 1, shY + 6); c.rotate(-0.5); ell(c, 0, 3, 3.5, 4.5); c.fill(); c.fillRect(-0.8, -9, 1.6, 9); c.restore(); }
   hairBack(c, lk, hy);
   // 腿
@@ -611,7 +611,7 @@ function drawLabels(c, v) {
     if (a.partner) { c.font = `${Math.round(R * 0.9)}px sans-serif`; c.fillText(a.couple && a.couple.stage >= 2 ? '❤️' : '🧶', p.x + R * 0.95, p.y - R * 0.8); }
     if (a.goal && a.goal.act === 'sleep' && a.hidden) { c.font = `${Math.round(R * 0.8)}px sans-serif`; c.fillStyle = '#fff'; c.fillText('z', p.x - R, p.y - R); }
     if ((showNames || foc || hov) && !p.inside) {
-      c.font = `600 11px "PingFang SC","Microsoft YaHei",sans-serif`;
+      c.font = `600 11px "Nunito","Segoe UI",system-ui,sans-serif`;
       const tw = c.measureText(a.name).width;
       c.fillStyle = 'rgba(20,20,30,.72)'; rr(c, p.x + R + 3, p.y - 8, tw + 10, 16, 8); c.fill();
       c.fillStyle = '#fff'; c.textAlign = 'left'; c.fillText(a.name, p.x + R + 8, p.y + 0.5);
@@ -638,17 +638,24 @@ function drawLabels(c, v) {
     drawBubble(c, p.x, p.y - r - 6, (b.kind === 'phone' ? '📞 ' : '') + b.text, b, a);
   }
 }
+// Wrap at spaces; a word longer than the line is broken by character
 function wrapText(c, text, maxW) {
   const out = []; let line = '';
-  for (const ch of text) {
-    if (c.measureText(line + ch).width > maxW && line) { out.push(line); line = ch; } else line += ch;
+  for (const word of text.split(' ')) {
+    const next = line ? line + ' ' + word : word;
+    if (c.measureText(next).width <= maxW) { line = next; continue; }
+    if (line) out.push(line);
+    line = '';
+    for (const ch of word) {
+      if (c.measureText(line + ch).width > maxW && line) { out.push(line); line = ch; } else line += ch;
+    }
   }
   if (line) out.push(line);
   return out;
 }
 function drawBubble(c, x, y, text, b, a) {
   const think = b.kind === 'think';
-  c.font = `${think ? 400 : 600} 13px "PingFang SC","Microsoft YaHei",sans-serif`;
+  c.font = `${think ? 400 : 600} 13px "Nunito","Segoe UI",system-ui,sans-serif`;
   const lines = wrapText(c, text, 168), lh = 17;
   const w = Math.max(...lines.map(l => c.measureText(l).width)) + 18, h = lines.length * lh + 10;
   const fade = clamp(Math.min(b.t / 0.15, (b.dur - b.t) / 0.3), 0, 1);
