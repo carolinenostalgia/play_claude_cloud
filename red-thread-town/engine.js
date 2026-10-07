@@ -18,7 +18,7 @@ const G = {
   t: 7.5 * 60,            // 游戏时间（分钟，从第 0 天 0 点起）
   speed: 1, realT: 0,
   agents: [], byId: {}, cars: [], couples: [], scenes: [],
-  floats: [], snaps: [], hearts: [], log: [],
+  floats: [], snaps: [], hearts: [], log: [], rockets: [], sparks: [], confetti: [],
   rain: false, rainUntil: 0, nextWeather: 9 * 60,
 };
 const day = () => Math.floor(G.t / 1440);
@@ -276,7 +276,7 @@ class Agent {
     if (def.dog) this.dog = { x: this.x + 8, y: this.y, phase: 0 };
   }
   get name2() { return `${this.id} ${this.name}`; }
-  say(text, dur, kind = 'say') { this.bubble = { text, t: 0, dur, kind }; }
+  say(text, dur, kind = 'say', to = null) { this.bubble = { text, t: 0, dur, kind, to }; }
 
   basePlan(d) {
     if (this.plans[d]) return this.plans[d];
@@ -549,20 +549,25 @@ function compat(a, b) {
   const key = [a.temper, b.temper].sort().join('-');
   return shared * 0.6 + (TEMPER_MATCH[key] || 0) + (a.temper === 'warm' || b.temper === 'warm' ? 0.15 : 0);
 }
-const STAGES = ['Just tied', 'Flirting', 'Dating', 'Married'];
+const STAGES = ['Just tied', 'Flirting', 'Dating', 'Living together', 'Married'];
+const stageLabel = c => c.stage === 4 && !c.together ? 'Married · living apart' : STAGES[c.stage];
 let coupleSeq = 0;
 class Couple {
   constructor(a, b) {
     this.id = ++coupleSeq; this.a = a; this.b = b;
     this.compat = compat(a, b);
-    this.chem = rand(-8, 8);
-    this.aff = clamp(42 + this.compat * 11 + this.chem, 20, 75);
-    this.stage = 0; this.dates = 0; this.calls = 0; this.date = null; this.scene = null;
-    this.born = G.t; this.bornReal = G.realT; this.nextCall = G.t + rand(8, 25); this.lastDay = day(); this.broken = false;
+    // Honeymoon: everyone starts near full hearts, then drifts. Poor matches sour within a game day or so.
+    this.aff = rand(86, 96);
+    this.drift = Math.max(-0.5, 1.9 - 1.15 * this.compat + rand(-0.5, 0.6));   // affection lost per game hour
+    this.stage = 0; this.dates = 0; this.calls = 0; this.date = null; this.scene = null; this.together = false; this.reply = null;
+    this.born = G.t; this.bornReal = G.realT; this.nextCall = G.t + rand(8, 25); this.nextText = G.t + rand(40, 90);
+    this.lastDay = day(); this.lastT = G.t; this.broken = false;
     a.partner = b; b.partner = a; a.couple = this; b.couple = this;
   }
   other(x) { return x === this.a ? this.b : this.a; }
   stars() { return clamp(Math.round(2.5 + this.compat * 1.1), 1, 5); }
+  hearts() { return Math.round(this.aff / 10) / 2; }   // 0–5 in half hearts
+  mood() { return this.aff >= 70 ? 'sweet' : this.aff >= 40 ? 'normal' : 'sour'; }
   bump(d, who) {
     this.aff = clamp(this.aff + d, 0, 100);
     const t = who || pick([this.a, this.b]);
@@ -582,10 +587,17 @@ class Couple {
   }
   releaseSeats() { if (this.seats) this.seats.taken = null; this.seats = null; this.seatsLoc = null; this.a.seat = null; this.b.seat = null; }
   tick() {
-    if (this.broken || this.scene) return;
-    if (day() !== this.lastDay) { this.lastDay = day(); this.aff = clamp(this.aff - rand(0.5, 3), 0, 100); }
+    if (this.broken) return;
+    const dt = G.t - this.lastT; this.lastT = G.t;
+    if (dt > 0 && dt < 600) this.aff = clamp(this.aff - this.drift * dt / 60, 0, 100);
+    if (day() !== this.lastDay) { this.lastDay = day(); this.drift += rand(-0.35, 0.35); }
+    if (this.scene) return;
     const { a, b } = this;
-    if (this.aff < 15 && !a.lock && !b.lock) { startBreakup(this); return; }
+    const free = !a.lock && !b.lock && !a.onPhone && !b.onPhone;
+    if (this.aff < 18 && !a.lock && !b.lock) { startBreakup(this); return; }
+    if (this.together && this.aff < 35 && free) { startMoveOut(this); return; }
+    if (this.reply && G.t >= this.reply.at && this.reply.from.awake() && free) { startLateReply(this); return; }
+    if (G.t >= this.nextText && a.awake() && b.awake() && free && !a.dateReady && !b.dateReady) { startText(this); return; }
     if (this.date) {
       const D = this.date;
       if (a.dateReady && b.dateReady && !a.lock && !b.lock) { startDateScene(this); return; }
@@ -658,8 +670,9 @@ class Scene {
     if (ln.who && this.said.has(ln.text)) ln.text = pick(['Me too!', 'Same here!', 'Haha, same!', 'Ditto!']);
     this.said.add(ln.text);
     ln.text = ln.text.replace(/(^|[!?] )([a-z])/g, (m, p, ch) => p + ch.toUpperCase());   // a topic word can start a sentence
-    const dur = ln.dur || clamp(1.3 + ln.text.length * 0.1, 1.8, 5);
-    if (ln.who) ln.who.say(ln.text, dur + 0.3, this.kind === 'call' || this.phone ? 'phone' : 'say');
+    const dur = ln.dur || clamp(1.8 + ln.text.length * 0.07, 2.6, 6.5);
+    const to = ln.who && this.c && (ln.who === this.c.a || ln.who === this.c.b) && this.kind !== 'stood' ? this.c.other(ln.who) : null;
+    if (ln.who) ln.who.say(ln.text, dur + 0.3, this.kind === 'text' ? 'text' : this.kind === 'call' || this.phone ? 'phone' : 'say', to);
     else Director.subtitle(ln.text, dur + 0.2);
     if (ln.fx) ln.fx();
     if (ln.sfx) sfx(ln.sfx);
@@ -681,7 +694,7 @@ function startCall(c) {
   const v = { a: A.name, b: B.name, p: vName, v: verb };
   const lines = [];
   let agreed = false;
-  const fightP = c.stage >= 1 ? 0.1 + (c.aff < 45 ? 0.25 : 0) + (['grumpy', 'tsun'].includes(A.temper) ? 0.08 : 0) : 0;
+  const fightP = c.stage >= 1 || c.aff < 45 ? 0.08 + (c.aff < 45 ? 0.4 : c.aff < 65 ? 0.12 : 0) + (['grumpy', 'tsun'].includes(A.temper) ? 0.08 : 0) : 0;
   let kind = 'call';
   if (c.calls === 0) {
     lines.push({ who: A, text: fillT(pick(L.meetCute), { b: B.name, p: locName(pick(['cafe', 'mall', 'park', 'shop', 'books'])) }) });
@@ -766,6 +779,15 @@ function startDateScene(c) {
     lines.push({ who: null, text: fillT(inc.text, { a: s1.name, b: c.other(s1).name, x: x.name }), fx: () => c.bump(d, s1) });
   }
   if (c.aff < 45 && Math.random() < 0.5) lines.push({ who: pick([a, b]), text: pick(L.awkward), fx: () => c.bump(-2) });
+  const md = c.aff < 45 ? 'sour' : c.aff >= 78 ? 'sweet' : null;
+  if (md && Math.random() < 0.8) {
+    const ex = pick(DATE_MOOD[md]), s1 = pick([a, b]);
+    ex.forEach((t, i) => {
+      const ln = { who: i % 2 ? c.other(s1) : s1, text: t };
+      if (i === ex.length - 1) ln.fx = () => c.bump(md === 'sour' ? -rand(3, 7) : rand(2, 5), s1);
+      lines.push(ln);
+    });
+  }
   log(`💞 ${a.name2} and ${b.name2}: date #${n} at ${locName(venue)}`);
   runScene(new Scene('date', c, lines, {
     title: `Date #${n} · ${locName(venue)}`,
@@ -799,20 +821,126 @@ function dateEnding(c) {
         else { c.bump(-14, conf); Director.card('💧 Turned down', `${oth.name2}: "Let's just be friends."`); log(`💧 ${conf.name2} confessed to ${oth.name2} and was turned down`); sfx('bad'); }
       },
     });
-  } else if (c.stage === 2 && c.aff >= 86 && c.dates >= 4 && Math.random() < 0.55) {
+  } else if ((c.stage === 2 || c.stage === 4) && !c.together && c.aff >= 72 && c.dates >= 2) {
+    const ok = Math.random() < (c.aff - 50) / 35;
+    out.push({ who: conf, text: fillT(pick(MOVE_IN.ask), { b: oth.name }), sfx: 'heart' });
+    out.push({
+      who: oth, text: pick(ok ? MOVE_IN.yes : MOVE_IN.no),
+      fx: () => {
+        if (!ok) { c.bump(-6, conf); log(`🙅 ${oth.name2} isn't ready to move in with ${conf.name2}`); return; }
+        const home = moveIn(c);
+        if (c.stage === 2) c.stage = 3;
+        c.bump(6, oth);
+        log(`🏠 ${a.name2} and ${b.name2} are moving in together at ${locName(home)}!`);
+        celebrate(c, '🏠 Moving in together!', `${a.name2} ❤ ${b.name2} · new home: ${locName(home)}`, home);
+      },
+    });
+  } else if (c.stage === 3 && c.aff >= 84 && c.dates >= 4 && Math.random() < 0.55) {
     out.push({ who: null, text: `(${conf.name} kneels down and pulls out a little box)` });
     out.push({ who: conf, text: fillT(pick(L.propose), { b: oth.name }), sfx: 'heart' });
-    out.push({ who: oth, text: pick(L.wed), fx: () => { c.stage = 3; marry(c); Director.card('💒 Just married!', `${a.name2} ❤ ${b.name2}`); log(`💒 ${a.name2} and ${b.name2} got married and moved in together!`); sfx('love'); burstHearts(a, b, 40); } });
+    out.push({ who: oth, text: pick(L.wed), fx: () => { c.stage = 4; c.bump(8, conf); log(`💒 ${a.name2} and ${b.name2} got married!`); celebrate(c, '💒 Just married!', `${a.name2} ❤ ${b.name2}`, c.homeId); } });
   }
   const good = c.aff >= 42;
   out.push({ who: a, text: T_(good ? L.byeGood : L.byeBad, a, {}) });
   out.push({ who: b, text: T_(good ? L.byeGood : L.byeBad, b, {}) });
   return out;
 }
-function marry(c) {
-  const home = isHome(c.a.home) && c.a.home.startsWith('apt') ? c.b.home : c.a.home;   // 住进房子
-  c.a.home = c.b.home = home;
+// Move into one home (a house beats an apartment)
+function moveIn(c) {
+  const home = c.a.origHome.startsWith('apt') && !c.b.origHome.startsWith('apt') ? c.b.origHome : c.a.origHome;
+  c.a.home = c.b.home = home; c.homeId = home; c.together = true;
   c.a.goal = c.b.goal = null;
+  return home;
+}
+const MOVE_IN = {
+  ask: ['{b}... what if we lived together?', "I keep wishing I didn't have to say goodbye at night. Move in with me?", 'My place has room for two toothbrushes. Just saying.', 'Should we get a place together?'],
+  yes: ["Yes! Let's do it!", "I thought you'd never ask!", 'Only if I get the side of the bed by the window.', "(nods, smiling) Okay. Let's."],
+  no: ["Isn't it a bit soon?", 'I like having my own space...', 'Can we wait a little longer?'],
+  out: ['I think I need my own space for a while.', 'Maybe living together was too soon.', "I can't keep doing this. I'm moving out.", "We fight every night. I'm going back to my place."],
+  outReply: ["...If that's what you want.", 'Fine! Take your stuff!', "Please don't go.", '(silence)', "Don't forget your mug."],
+};
+function startMoveOut(c) {
+  const { a, b } = c;
+  const mover = a.origHome !== c.homeId ? a : b.origHome !== c.homeId ? b : null;
+  const A = mover || a, B = c.other(A);
+  const lines = [
+    { who: A, text: fillT(pick(L.fightStart), { p: locName(pick(['fun', 'mall', 'park'])) }), sfx: 'bad' },
+    { who: B, text: T_(L.fightBack, B, {}) },
+    { who: A, text: pick(MOVE_IN.out) },
+    { who: B, text: pick(MOVE_IN.outReply) },
+  ];
+  if (mover) lines.push({ who: null, text: `(${mover.name} packs a box and heads back to ${locName(mover.origHome)}.)` });
+  const phone = !(dist(a, b) < 120 && !a.hidden && !b.hidden);
+  A.onPhone = B.onPhone = phone;
+  runScene(new Scene('breakup', c, lines, {
+    title: 'Moving out', A, B, phone, prio: 4,
+    onEnd() {
+      a.onPhone = b.onPhone = false;
+      c.together = false; if (c.stage === 3) c.stage = 2;
+      if (mover) { mover.home = mover.origHome; mover.goal = null; }
+      c.aff = clamp(c.aff + 8, 0, 100);   // a little relief after the fight
+      Director.card('📦 Moving out', `${a.name2} and ${b.name2} live apart now`);
+      log(`📦 ${a.name2} and ${b.name2} stopped living together${mover ? `. ${mover.name} moved back to ${locName(mover.origHome)}` : ''}`);
+      sfx('bad');
+    },
+  }));
+}
+
+/* ---------------- Texting ---------------- */
+function startText(c) {
+  const ia = Math.random() < EXTRO[c.a.temper] / (EXTRO[c.a.temper] + EXTRO[c.b.temper]);
+  const A = ia ? c.a : c.b, B = c.other(A);
+  const m = c.mood(), busy = B.goal && B.goal.act === 'work';
+  c.nextText = G.t + rand(50, 150);
+  const v = { a: A.name, b: B.name, p: locName(pick(['cafe', 'mall', 'park', 'shop', 'books', 'bar'])), s: statusPhrase(B) };
+  const lateP = c.reply ? 0 : (m === 'sour' ? 0.35 : m === 'normal' ? 0.15 : 0.05) + (busy ? 0.12 : 0);
+  const lines = [];
+  let pool = m, title = { sweet: 'Sweet texts 💬', normal: 'Texting 💬', sour: 'Cold texts 💬' }[m];
+  if (Math.random() < lateP) {
+    lines.push({ who: A, text: pick(LATE.ask) });
+    lines.push({ who: null, text: fillT(pick(LATE.read), { b: B.name }), fx: () => c.bump(-1, A) });
+    c.reply = { from: B, to: A, sent: G.t, at: G.t + rand(90, 300) };
+    title = 'Left on read 👀';
+    log(`👀 ${B.name2} left ${A.name2} on read`);
+  } else {
+    if (Math.random() < (m === 'sour' ? 0.14 : 0.07)) { pool = 'surprise'; title = 'A little surprise 🎁'; }
+    const ex = pick(TEXTS[pool]), [lo, hi] = TEXT_DELTA[pool];
+    ex.forEach((t, i) => {
+      const ln = { who: i % 2 ? B : A, text: fillT(t, v) };
+      if (i === ex.length - 1) ln.fx = () => c.bump(rand(lo, hi), B);
+      lines.push(ln);
+    });
+    if (pool === 'surprise') log(`🎁 ${A.name2} surprised ${B.name2}`);
+    if (pool === 'sour') log(`💬 ${A.name2} and ${B.name2} are bickering by text`);
+  }
+  A.onPhone = B.onPhone = true;
+  runScene(new Scene('text', c, lines, { title, A, B, phone: true, onEnd() { A.onPhone = B.onPhone = false; } }));
+}
+function startLateReply(c) {
+  const r = c.reply; c.reply = null;
+  const hrs = Math.max(1, Math.round((G.t - r.sent) / 60));
+  const chill = ['warm', 'shy', 'romantic'].includes(r.to.temper) && c.aff > 50;
+  const lines = [
+    { who: r.from, text: pick(LATE.sorry) },
+    { who: r.to, text: fillT(pick(chill ? LATE.fine : LATE.angry), { h: hrs, b: r.from.name }), fx: () => c.bump(chill ? 0 : -Math.min(12, 2 + hrs * 2), r.to) },
+  ];
+  log(`⌛ ${r.from.name2} replied to ${r.to.name2} ${hrs} hour${hrs === 1 ? '' : 's'} late`);
+  r.from.onPhone = r.to.onPhone = true;
+  runScene(new Scene('text', c, lines, { title: `Replying ${hrs}h late`, A: r.from, B: r.to, phone: true, onEnd() { r.from.onPhone = r.to.onPhone = false; } }));
+}
+
+/* ---------------- Big moments: fireworks + confetti ---------------- */
+function celebrate(c, title, sub, homeId) {
+  Director.card(title, sub);
+  Director.moment(c, title);
+  sfx('love'); burstHearts(c.a, c.b, 40);
+  const spots = [{ x: (c.a.x + c.b.x) / 2, y: (c.a.y + c.b.y) / 2 }];
+  if (homeId && LOC[homeId]) spots.push(LOC[homeId].center);
+  for (let i = 0; i < 14; i++) {
+    const s = spots[i % spots.length];
+    G.rockets.push({ x: s.x + rand(-70, 70), y: s.y + 10, vy: -rand(120, 170), t: -i * 0.35 - rand(0, 0.2), col: pick(['#ff4d6d', '#ffd166', '#06d6a0', '#4cc9f0', '#f72585', '#ffffff', '#b388ff']) });
+  }
+  for (let i = 0; i < 160; i++) G.confetti.push({ x: rand(0, 1), y: rand(-0.6, 0), vx: rand(-0.05, 0.05), vy: rand(0.12, 0.3), r: rand(0, 6), vr: rand(-6, 6), col: pick(['#ff4d6d', '#ffd166', '#06d6a0', '#4cc9f0', '#f72585', '#b388ff']), t: 0 });
 }
 function startStoodUp(c, waiting) {
   const other = c.other(waiting);
@@ -849,6 +977,7 @@ function endCouple(c, why, who) {
   for (const p of [a, b]) {
     p.partner = null; p.couple = null; p.exes.push(c.other(p).id); p.heartbreakUntil = G.t + 1440;
     if (p.home !== p.origHome) { p.home = p.origHome; p.goal = null; }
+    c.together = false;
   }
   G.couples = G.couples.filter(x => x !== c);
   sfx('snap');

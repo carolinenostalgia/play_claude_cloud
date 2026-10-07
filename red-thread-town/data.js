@@ -256,7 +256,7 @@ const L = {
     warm: ['Oh... thanks.'], tsun: ['Cheesy.'], chatty: ['Hahaha, wow, smooth talker... (awkward laugh)'], shy: ['... (has no idea what to say)'],
     romantic: ['Mm... thank you.'], nerd: ['That conclusion is not rigorous.'], wild: ['So corny, hahaha.'], grumpy: ['Get to the point.'],
   },
-  awkward: ['...', '(ten seconds of silence)', 'So... the weather... haha...', 'Waiter! Another one, please!', '(checks phone)', 'Um... you go first.'],
+  awkward: ['...', '(ten seconds of silence)', 'So... the weather... haha...', 'Waiter! Another one, please!', '(checks phone)', 'Um... you go first.', '(stares at the menu for a very long time)', 'Anyway...'],
   byeGood: {
     warm: ['I had a great time. See you soon!', 'Today was lovely. Thank you~'], tsun: ["If you ask me out again... I might not say no."], chatty: ["I'll send you a voice message when I get home! A long one!"],
     shy: ['Thanks for today... (waves)', 'S-see you next time...'], romantic: ['The moon will remember tonight.', "I'll dream about today."], nerd: ["Today's date rating: 9.2.", 'Data collected. Results: positive.'],
@@ -310,15 +310,15 @@ const L = {
   },
   invite: ['So... want to {v} at {p}? My treat!', 'Free this week? Let\'s {v} at {p}.', "To say thanks, let's {v} at {p}?"],
   inviteYes: ['Sure!', "...Fine, consider it a favor repaid.", 'Let me check my schedule... I\'m free!', "Yes! It's a date!"],
-  inviteNo: ["I'm a bit busy lately. Another time?", 'Let me think about it...', "Not this week. Maybe next time."],
-  callHi: ['What are you up to?', "Hey~ it's me.", 'Guess who?', 'Have you eaten yet?'],
+  inviteNo: ["I'm a bit busy lately. Another time?", 'Let me think about it...', "Not this week. Maybe next time.", "I'm not really in the mood.", 'Can I get back to you?'],
+  callHi: ['What are you up to?', "Hey~ it's me.", 'Guess who?', 'Have you eaten yet?', 'Got a minute?', 'Hiii, bored, talk to me.', 'Quick question!'],
   callStatus: ["I'm {s} right now.", 'Still {s}. So tired.', "I'm {s}. Kind of missing you."],
   callChat: {
     warm: ['Take care of yourself, okay?', "What do you want for dinner? I'll bring it."], tsun: ['Oh. I was just asking.', 'W-who said I miss you?!'], chatty: ['I have gossip!', 'Did you know eggs are on sale today?!'],
     shy: ['Mm...', 'I... just wanted to hear your voice.'], romantic: ['The moon is beautiful tonight.', 'I saw a cloud that looked like you.'], nerd: ['I wrote a script to estimate your commute.', 'Noted.'],
     wild: ["I'm so bored, come out and play!", 'I almost fell off my skateboard, haha!'], grumpy: ['Mm. Hanging up.', 'Someone annoyed me again today.'],
   },
-  callLove: ['Miss you.', 'Love you.', 'Sleep early, good night~', 'I like you a lot today too.', 'Mwah!'],
+  callLove: ['Miss you.', 'Love you.', 'Sleep early, good night~', 'I like you a lot today too.', 'Mwah!', 'You hang up first.', 'No, YOU hang up first.', 'Can\'t wait to see you.'],
   cancel: ['Sorry, I have to work late tonight... another day?', "I'm not feeling well today. Next time?"],
   stoodUp: ['Is {b} even coming?!', "I've waited an hour...", "Forget it, I'm leaving."],
   late: ['Sorry, sorry! Traffic was terrible!', 'Why are you so late?!'],
@@ -351,4 +351,83 @@ const CONTEXT_THOUGHTS = {
   single: ["Being single isn't so bad.", 'When will I meet the one?'],
   heartbroken: ["I'm not sad. Not at all...", '(staring at phone)', 'I need a drink tonight.'],
   inlove: ['Wonder what {p} is doing...', 'Missing {p}.', '(grinning like a fool)'],
+};
+
+// ---------- Texting (more often than calls); speakers alternate sender / receiver ----------
+// {a} sender {b} receiver {p} a place {s} what the receiver is doing
+const TEXTS = {
+  sweet: [
+    ['Good morning ☀️ thinking of you', 'Morning! I dreamt about you 🥰'],
+    ['Look at this cat 🐱 it looks exactly like you', 'Excuse me?? ...okay, it IS cute'],
+    ['What should I have for lunch?', 'Me 😏', 'Haha, stop it!'],
+    ['I walked past {p} and thought of you', 'Aww. Miss you already'],
+    ['Sent you a song 🎵', 'On repeat. 💕'],
+    ['Did you get home safe?', 'Yep! Thanks for checking ❤️'],
+    ['I told my mom about you', 'WHAT. What did she say?!', 'She wants to meet you 😄'],
+    ['Guess what I just bought', 'Tell me!', 'Two tickets. One is yours 🎟️'],
+    ['You looked so good today', 'Stop, I am blushing at work 🙈'],
+    ['Wish you were here', 'Wish I was there too 😢'],
+    ['Rate my outfit: 👕👖', '11 out of 10. No notes.'],
+    ['I saved you the last cookie', 'This is the most romantic thing anyone has ever done'],
+  ],
+  normal: [
+    ['Are you free tonight?', 'Maybe. Depends on work.'],
+    ['Did you eat?', 'Yeah. You?', 'Yeah.'],
+    ['Busy day?', 'Super busy. Talk later?', 'Sure.'],
+    ['Saw a funny video, sending it', 'Haha, nice'],
+    ["Don't forget your umbrella", 'Thanks, mom 😂'],
+    ['What are you doing?', '{s}.', 'Cool.'],
+    ['Traffic is crazy today', 'Ugh. Stay safe.'],
+    ['Can you grab milk on the way home?', 'Which kind?', 'The usual.', 'There is a usual?'],
+    ['Weekend plans?', 'Not sure yet.', 'Let me know.'],
+    ['My boss is driving me nuts', 'Same here.'],
+  ],
+  sour: [
+    ["Why didn't you call me last night?", 'I was tired.', "You're always tired."],
+    ['Who were you talking to at {p}?', 'A coworker. Relax.', 'Hmm.'],
+    ['Are we still on for the weekend?', "I'll see.", "You'll SEE?"],
+    ['Fine.', "What's wrong now?", 'Nothing.', 'Clearly something.'],
+    ['You forgot our anniversary.', 'Wait, that was today?!', '...'],
+    ["I feel like you don't listen to me.", "I'm listening right now.", "No, you're not."],
+    ['Can you stop liking your ex\'s photos?', 'It was an accident!', 'Three times?'],
+    ['You said you\'d call at 8.', 'Something came up.', 'Something always comes up.'],
+    ['We need to talk.', 'About what?', 'You know what.'],
+    ['Why is your phone always on silent?', 'Because people keep texting me.', '"People" meaning me?'],
+    ['You were rude to my friend.', 'Your friend was rude first!', 'Unbelievable.'],
+    ['I waited at {p} for an hour last week.', 'I said sorry already.', 'Saying sorry is easy.'],
+  ],
+  surprise: [
+    ['(sends a photo of a bouquet) These are for you 💐', '...You remembered which flowers I like?', 'Of course I did.'],
+    ['I booked us a table for Friday 🍷', 'Wait, really? That is so sweet!'],
+    ['Sorry about earlier. I was wrong.', '...Thank you for saying that.'],
+    ['Found the keychain you lost! 🔑', 'NO WAY. My hero!'],
+    ['I left a note in your coat pocket', '...I just found it. I might cry.'],
+    ['Look outside your window 👀', '(a paper plane with a heart lands on the sill)', 'You dork. I love it.'],
+  ],
+};
+const TEXT_DELTA = { sweet: [2, 4], normal: [-1, 2], sour: [-8, -3], surprise: [5, 9] };
+// Left on read: the reply comes hours later
+const LATE = {
+  ask: ['Hey, you up?', 'Did you see my message?', 'Call me when you can.', 'Hello??', 'Are you mad at me?', 'Did you get home okay?', 'I miss you.'],
+  read: ['({b} reads it... and doesn\'t reply.)', '(Read. No reply.)', '({b} sees the message and puts the phone away.)', '(The message says "Read". Nothing comes back.)'],
+  sorry: ['Sorry, just saw this!', 'Oops, my phone died.', 'Was busy, sorry.', 'Huh? Oh, sorry.', 'Sorry sorry, I fell asleep.', 'My bad, crazy day.'],
+  angry: ['It has been {h} hours.', 'Wow. {h} hours. Great.', 'Cool. Whatever.', '{h} hours, {b}. {h}.', "Don't bother."],
+  fine: ['No worries!', "It's okay~", 'Ha, I figured.', 'All good, talk later!'],
+};
+// Extra date lines by mood
+const DATE_MOOD = {
+  sweet: [
+    ["Let's take a photo together!", 'Only if I get my good side.'],
+    ['I could sit here with you all day.', 'Then let\'s.'],
+    ['You have something on your face.', 'Where?', '(wipes it off) Got it. Just wanted an excuse.'],
+    ['Remember our first call?', 'How could I forget?'],
+  ],
+  sour: [
+    ["You're on your phone again.", 'I\'m just checking something.'],
+    ['Can we talk about something else?', 'Like what?', '...Never mind.'],
+    ['You always pick this place.', 'You never pick anything!'],
+    ['Are you even listening?', 'Huh? Yes. Of course.'],
+    ['You seem distant lately.', "I'm right here, aren't I?"],
+    ['You still haven\'t said sorry.', 'For what?!'],
+  ],
 };

@@ -193,6 +193,7 @@ function drawBuilding(c, L) {
   if (T === 'market') { for (let i = 0; i < 3; i++) { const x = L.x + L.w - 30 - i * 14, y = L.y - 22; c.strokeStyle = '#90a4ae'; c.lineWidth = 1.5; c.strokeRect(x, y, 10, 7); } }
   if (T === 'cafe') { const p = L.named.counter; c.fillStyle = '#8d6e63'; rr(c, p.x - 14, p.y + 1, 28, 9, 2); c.fill(); c.fillStyle = '#fff'; c.fillRect(p.x - 10, p.y - 3, 5, 4); c.fillRect(p.x + 4, p.y - 3, 5, 4); }
   drawSeatsAndTables(c, L);
+  if (G.couples.some(cp => cp.together && cp.homeId === L.id)) { c.font = '18px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('💞', L.x + L.w - 14, L.y + 12 + Math.sin(G.realT * 3) * 1.5); }
   // 招牌
   const label = (L.emoji ? L.emoji + ' ' : '') + L.name;
   signText(c, label, cx, L.type === 'house' ? L.y + roofH / 2 : L.y + Math.min(roofH / 2, 20), L.type === 'house' ? 9 : 12);
@@ -524,6 +525,17 @@ function renderView(v) {
     c.globalCompositeOperation = 'source-over';
   }
   if (G.rain) { c.fillStyle = 'rgba(70,90,120,.16)'; c.fillRect(B.x0, B.y0, B.x1 - B.x0, B.y1 - B.y0); }
+  if (G.rockets.length || G.sparks.length) {
+    // Glow at night; solid, outlined sparks by day so they still show on light ground
+    c.globalCompositeOperation = n > 0.3 ? 'lighter' : 'source-over';
+    for (const r of G.rockets) if (r.t >= 0) { c.fillStyle = '#ffb703'; circ(c, r.x, r.y, 2.6); c.fill(); c.fillStyle = 'rgba(255,170,60,.5)'; c.fillRect(r.x - 1, r.y, 2, 16); }
+    for (const s of G.sparks) {
+      c.globalAlpha = clamp(1 - s.t / s.life, 0, 1);
+      if (n <= 0.3) { c.fillStyle = 'rgba(40,20,60,.35)'; circ(c, s.x, s.y, 3.4); c.fill(); }
+      c.fillStyle = s.col; circ(c, s.x, s.y, 2.6); c.fill();
+    }
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  }
 
   // ---------- 屏幕坐标层 ----------
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -540,6 +552,12 @@ function renderView(v) {
   c.restore();
 }
 
+// A thread is drawn bright only for the couple on camera, under a pointer, or being picked; the rest stay faint
+function litCouple(cp) {
+  const f = Director.focusSet(), sel = UI.pending && UI.pending.agent;
+  for (const p of [cp.a, cp.b]) if (f.has(p) || UI.hovered.has(p) || p === sel) return true;
+  return G.couples.length <= 2;
+}
 function drawThreads(c, z) {
   const t = G.realT;
   for (const cp of G.couples) {
@@ -547,10 +565,11 @@ function drawThreads(c, z) {
     const bind = (G.binds || []).find(b => b.c === cp);
     const prog = bind ? clamp(bind.t / 1.1, 0, 1) : 1;
     const d = dist(A, Bp), mx = (A.x + Bp.x) / 2, my = (A.y + Bp.y) / 2 + Math.min(70, d * 0.16) + Math.sin(t * 1.4 + cp.id) * 5;
-    const width = (1.6 + cp.stage * 0.6) / z;
-    c.strokeStyle = cp.stage >= 3 ? 'rgba(255,40,90,.95)' : 'rgba(225,25,45,.85)';
-    c.lineWidth = Math.max(width, 0.6); c.lineCap = 'round';
-    c.shadowColor = 'rgba(255,40,60,.7)'; c.shadowBlur = 6;
+    const lit = litCouple(cp) || bind;
+    const width = (lit ? 1.6 + cp.stage * 0.6 : 0.9) / z;
+    c.strokeStyle = lit ? (cp.stage >= 3 ? 'rgba(255,40,90,.95)' : 'rgba(225,25,45,.85)') : 'rgba(225,25,45,.16)';
+    c.lineWidth = Math.max(width, 0.4); c.lineCap = 'round';
+    c.shadowColor = 'rgba(255,40,60,.7)'; c.shadowBlur = lit ? 6 : 0;
     c.beginPath(); c.moveTo(A.x, A.y);
     const N = 26;
     for (let i = 1; i <= N * prog; i++) { const u = i / N; c.lineTo((1 - u) * (1 - u) * A.x + 2 * u * (1 - u) * mx + u * u * Bp.x, (1 - u) * (1 - u) * A.y + 2 * u * (1 - u) * my + u * u * Bp.y); }
@@ -609,6 +628,7 @@ function drawLabels(c, v) {
     c.fillStyle = '#fff'; c.font = `900 ${Math.round(R * 1.15)}px "Arial Black",Arial,sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillText(a.id, p.x, p.y + 0.5);
     if (a.partner) { c.font = `${Math.round(R * 0.9)}px sans-serif`; c.fillText(a.couple && a.couple.stage >= 2 ? '❤️' : '🧶', p.x + R * 0.95, p.y - R * 0.8); }
+    if (a.couple && !p.inside) drawHeartMeter(c, p.x, p.y - R - 10, a.couple);
     if (a.goal && a.goal.act === 'sleep' && a.hidden) { c.font = `${Math.round(R * 0.8)}px sans-serif`; c.fillStyle = '#fff'; c.fillText('z', p.x - R, p.y - R); }
     if ((showNames || foc || hov) && !p.inside) {
       c.font = `600 11px "Nunito","Segoe UI",system-ui,sans-serif`;
@@ -635,10 +655,23 @@ function drawLabels(c, v) {
     const b = a.bubble; if (!b) continue;
     const scene = b.kind !== 'think';
     if (!scene && !(z > fz * 2.4 || focusSet.has(a) || UI.hovered.has(a))) continue;
-    drawBubble(c, p.x, p.y - r - 6, (b.kind === 'phone' ? '📞 ' : '') + b.text, b, a);
+    drawBubble(c, p.x, p.y - r - 6 - (a.couple && !p.inside ? 16 : 0), b.text, b, a);
   }
 }
 // Wrap at spaces; a word longer than the line is broken by character
+// Five hearts for how the couple feels: full in the honeymoon, emptier as they sour
+function drawHeartMeter(c, x, y, cp) {
+  const h = cp.hearts(), col = h >= 3.5 ? '#ff2d55' : h >= 2 ? '#ff9f1c' : '#8d99ae', s = 11;
+  c.save();
+  c.fillStyle = 'rgba(20,20,30,.6)'; rr(c, x - s * 2.5 - 4, y - 7.5, s * 5 + 8, 15, 7.5); c.fill();
+  c.font = '12px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  for (let i = 0; i < 5; i++) {
+    const hx = x + (i - 2) * s, f = clamp(h - i, 0, 1);
+    c.fillStyle = 'rgba(255,255,255,.28)'; c.fillText('♥', hx, y + 0.5);
+    if (f > 0) { c.save(); c.beginPath(); c.rect(hx - s / 2, y - 7, s * f, 14); c.clip(); c.fillStyle = col; c.fillText('♥', hx, y + 0.5); c.restore(); }
+  }
+  c.restore();
+}
 function wrapText(c, text, maxW) {
   const out = []; let line = '';
   for (const word of text.split(' ')) {
@@ -655,19 +688,30 @@ function wrapText(c, text, maxW) {
 }
 function drawBubble(c, x, y, text, b, a) {
   const think = b.kind === 'think';
+  // Header: who is speaking, and to whom
+  const head = [[(b.kind === 'phone' ? '📞 ' : b.kind === 'text' ? '📱 ' : '') + `${a.id} ${a.name}`, a.color]];
+  if (b.to) head.push([' to ', '#8a8a96'], [`${b.to.id} ${b.to.name}`, b.to.color]);
+  else if (think) head.push([' (thinking)', '#8a8a96']);
+  c.font = '800 11px "Nunito","Segoe UI",system-ui,sans-serif';
+  const headW = head.reduce((s, [t]) => s + c.measureText(t).width, 0);
   c.font = `${think ? 400 : 600} 13px "Nunito","Segoe UI",system-ui,sans-serif`;
-  const lines = wrapText(c, text, 168), lh = 17;
-  const w = Math.max(...lines.map(l => c.measureText(l).width)) + 18, h = lines.length * lh + 10;
+  const lines = wrapText(c, text, 168), lh = 17, hh = 15;
+  const w = Math.max(headW, ...lines.map(l => c.measureText(l).width)) + 18, h = lines.length * lh + 10 + hh;
   const fade = clamp(Math.min(b.t / 0.15, (b.dur - b.t) / 0.3), 0, 1);
   const bx = clamp(x - w / 2, 4, SW_ - w - 4), by = y - h - 8;
   c.globalAlpha = fade * (think ? 0.88 : 1);
-  c.fillStyle = think ? '#f4f6fb' : b.kind === 'phone' ? '#e8fff1' : '#fff';
+  c.fillStyle = think ? '#f4f6fb' : b.kind === 'phone' ? '#e8fff1' : b.kind === 'text' ? '#eaf4ff' : '#fff';
   c.strokeStyle = think ? 'rgba(0,0,0,.18)' : a.color; c.lineWidth = think ? 1 : 2;
   rr(c, bx, by, w, h, think ? 12 : 9); c.fill(); c.stroke();
   if (think) { circ(c, x - 3, by + h + 4, 3); c.fill(); c.stroke(); circ(c, x - 6, by + h + 10, 1.8); c.fill(); }
   else { c.beginPath(); c.moveTo(x - 6, by + h - 1); c.lineTo(x, by + h + 8); c.lineTo(x + 5, by + h - 1); c.closePath(); c.fill(); c.beginPath(); c.moveTo(x - 6, by + h); c.lineTo(x, by + h + 8); c.lineTo(x + 5, by + h); c.stroke(); }
-  c.fillStyle = think ? '#555' : '#1d1d28'; c.textAlign = 'left'; c.textBaseline = 'top';
-  lines.forEach((l, i) => c.fillText(l, bx + 9, by + 6 + i * lh));
+  c.textAlign = 'left'; c.textBaseline = 'top';
+  c.font = '800 11px "Nunito","Segoe UI",system-ui,sans-serif';
+  let hx = bx + 9;
+  for (const [t, col] of head) { c.fillStyle = col; c.fillText(t, hx, by + 6); hx += c.measureText(t).width; }
+  c.font = `${think ? 400 : 600} 13px "Nunito","Segoe UI",system-ui,sans-serif`;
+  c.fillStyle = think ? '#555' : '#1d1d28';
+  lines.forEach((l, i) => c.fillText(l, bx + 9, by + 6 + hh + i * lh));
   c.textBaseline = 'middle'; c.globalAlpha = 1;
 }
 function fitZoom(v) { return Math.min(v.w / (WORLD_W + 40), v.h / (WORLD_H + 40)); }

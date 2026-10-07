@@ -21,17 +21,24 @@ function sfx(n) {
   if (n === 'bad') tone(220, 0.35, 'triangle', 0.06, 0, 0.7);
   if (n === 'door') tone(700, 0.06, 'square', 0.015);
   if (n === 'pick') tone(990, 0.08, 'sine', 0.06);
+  if (n === 'pop') { tone(rand(500, 900), 0.18, 'triangle', 0.03, 0, 0.4); }
 }
 
 /* ---------------- 导演 ---------------- */
-const PRIO = { bind: 5, breakup: 4, date: 3, call: 2, stood: 2 };
+const PRIO = { bind: 5, moment: 5, breakup: 4, date: 3, call: 2, stood: 2, text: 1 };
 const Director = {
   mode: 'director', god: false, lastHand: -99,
   cam: { x: WORLD_W / 2, y: WORLD_H / 2, z: 0.6 }, camL: { x: 0, y: 0, z: 1 }, camR: { x: 0, y: 0, z: 1 },
-  shot: null, queue: [], letter: 0, sub: null, cards: [], recent: [],
+  shot: null, queue: [], letter: 0, sub: null, cards: [], recent: [], recentCouples: [],
   offer(s) { this.queue.push({ s, prio: s.prio || PRIO[s.kind] || 1, at: G.realT }); },
   subtitle(text, dur) { this.sub = { text, t: 0, dur }; },
   card(title, sub) { this.cards.push({ title, sub, t: 0, dur: 3.4 }); },
+  // A big moment (moving in, wedding): stay on the couple if we already are, otherwise cut to them
+  moment(c, title) {
+    const sh = this.shot;
+    if (sh && sh.couple === c) { sh.cine = true; if (!sh.scene) sh.until = Math.max(sh.until || 0, G.realT + 8); return; }
+    this.offer({ kind: 'moment', c, A: c.a, B: c.b, prio: 5, dur: 9, title });
+  },
   focusSet() {
     const s = new Set(), sh = this.shot;
     if (!sh || this.mode !== 'director' || this.god) return s;
@@ -44,7 +51,7 @@ const Director = {
   },
   shotFrom(q) {
     const s = q.s;
-    if (s.kind === 'bind') return { type: 'pair', A: s.A, B: s.B, until: G.realT + s.dur, prio: q.prio, cine: true, title: s.title };
+    if (s.kind === 'bind' || s.kind === 'moment') return { type: 'pair', A: s.A, B: s.B, until: G.realT + s.dur, prio: q.prio, cine: true, title: s.title, couple: s.c };
     const A = s.A || (s.c && s.c.a), B = s.B || (s.c && s.c.b);
     if (s.kind === 'stood') return { type: 'follow', A, scene: s, prio: q.prio, cine: true, title: s.title };
     const far = A && B && dist(focusPt(A), focusPt(B)) > 260;
@@ -52,10 +59,19 @@ const Director = {
   },
   idle() {
     const r = Math.random();
-    if (r < 0.1) return { type: 'wide', until: G.realT + 5, prio: 0 };
-    if (r < 0.24) {
+    // With red threads around, mostly stay on one couple at a time
+    if (G.couples.length && r < 0.6) {
+      const cs = G.couples.filter(c => !this.recentCouples.includes(c));
+      const c = pick(cs.length ? cs : G.couples);
+      this.recentCouples.push(c); if (this.recentCouples.length > Math.max(1, G.couples.length - 1)) this.recentCouples.shift();
+      if (dist(focusPt(c.a), focusPt(c.b)) < 320) return { type: 'pair', A: c.a, B: c.b, until: G.realT + rand(14, 18), prio: 0, couple: c };
+      const A = c.a.hidden && !c.b.hidden ? c.b : c.a;
+      return { type: 'follow', A, until: G.realT + rand(12, 15), prio: 0, couple: c };
+    }
+    if (r < 0.68) return { type: 'wide', until: G.realT + 6, prio: 0 };
+    if (r < 0.78) {
       const opts = BUILDINGS.filter(L => L.inside.size > 0 && !isHome(L.id));
-      if (opts.length) return { type: 'loc', L: pick(opts), until: G.realT + 5.5, prio: 0 };
+      if (opts.length) return { type: 'loc', L: pick(opts), until: G.realT + 8, prio: 0 };
     }
     const pool = [];
     for (const a of G.agents) {
@@ -69,7 +85,7 @@ const Director = {
     let tot = pool.reduce((s, p) => s + p[1], 0), k = Math.random() * tot, A = pool[0][0];
     for (const [a, w] of pool) { k -= w; if (k <= 0) { A = a; break; } }
     this.recent.push(A); if (this.recent.length > 6) this.recent.shift();
-    return { type: 'follow', A, until: G.realT + rand(7, 10), prio: 0 };
+    return { type: 'follow', A, until: G.realT + rand(11, 14), prio: 0 };
   },
   update(dt) {
     const k = 1 - Math.exp(-dt * 2.6);
@@ -86,9 +102,13 @@ const Director = {
       return;
     }
     let sh = this.shot;
-    const finished = !sh || (sh.scene ? (sh.scene.done && (sh.doneAt = sh.doneAt || G.realT) && G.realT - sh.doneAt > 1.4) : G.realT > sh.until);
-    const top = this.queue.slice().sort((p, q) => q.prio - p.prio || p.at - q.at)[0];
-    if (top && (finished || top.prio > (sh ? sh.prio : 0) + 0.5 || (!sh.scene && top.prio >= 2 && sh.prio < 2))) {
+    const finished = !sh || (sh.scene ? (sh.scene.done && (sh.doneAt = sh.doneAt || G.realT) && G.realT - sh.doneAt > 3) : G.realT > sh.until);
+    // The couple we were just watching goes first, then the most important, then the oldest
+    const cur = sh && (sh.couple || (sh.scene && sh.scene.c));
+    const top = this.queue.slice().sort((p, q) => ((q.s.c === cur) - (p.s.c === cur)) || q.prio - p.prio || p.at - q.at)[0];
+    const busy = sh && ((sh.scene && !finished) || sh.prio >= 5);
+    const idleLong = sh && !sh.scene && sh.prio < 2 && G.realT - (sh.started || 0) > 4;
+    if (top && (finished || (top.prio >= 5 && !(sh && sh.prio >= 5)) || (!busy && idleLong && top.prio >= 2))) {
       this.queue.splice(this.queue.indexOf(top), 1);
       this.cut(this.shotFrom(top));
     } else if (finished) this.cut(this.idle());
@@ -120,6 +140,8 @@ const Director = {
   },
   cut(sh) {
     const was = this.shot;
+    sh.started = G.realT;
+    if (!sh.couple && sh.scene) sh.couple = sh.scene.c;
     this.shot = sh;
     if (sh.type === 'split') {
       const p = focusPt(sh.A), q = focusPt(sh.B), z = clamp(fitZoom({ w: SW_ / 2, h: SH_ }) * 4.2, 1.1, 2.6);
@@ -293,7 +315,7 @@ function buildRoster() {
   const box = $('#people');
   for (const a of G.agents) {
     const row = document.createElement('div'); row.className = 'person';
-    row.innerHTML = `<canvas width="72" height="88"></canvas><div class="info"><div class="nm"><b style="background:${a.color}">${a.id}</b>${a.name}<span class="job">${a.job} · ${TEMPER_NAME[a.temper]}</span></div><div class="st"></div><div class="rel"></div></div>`;
+    row.innerHTML = `<canvas width="72" height="88"></canvas><div class="info"><div class="nm"><b style="background:${a.color}">${a.id}</b>${a.name}<span class="job">${a.job} · ${TEMPER_NAME[a.temper]}</span></div><div class="home"></div><div class="st"></div><div class="rel"></div></div>`;
     const pc = row.querySelector('canvas').getContext('2d');
     pc.scale(2, 2); drawPerson(pc, a, 18, 41, { scale: 1.12, pose: 'stand', facing: 1 });
     row.addEventListener('click', () => {
@@ -305,23 +327,28 @@ function buildRoster() {
     a.row = row; box.appendChild(row);
   }
 }
+function heartsHTML(c) {
+  const h = c.hearts(), full = Math.floor(h), half = h - full >= 0.5 ? 1 : 0;
+  return `<span class="hearts" title="How they feel about each other">${'♥'.repeat(full)}${half ? '<i>♥</i>' : ''}<b>${'♥'.repeat(5 - full - half)}</b></span>`;
+}
 function refreshRoster() {
   for (const a of G.agents) {
     a.row.querySelector('.st').textContent = describe(a);
+    a.row.querySelector('.home').textContent = `🏠 ${locName(a.home)}${a.home !== a.origHome ? ` (with ${a.partner ? a.partner.name : 'partner'})` : ''}`;
     const c = a.couple, rel = a.row.querySelector('.rel');
-    if (c) rel.innerHTML = `<span class="tag s${c.stage}">${c.stage >= 2 ? '❤️' : '🧶'} ${a.partner.id} ${a.partner.name} · ${STAGES[c.stage]}</span><span class="bar"><i style="width:${c.aff}%"></i></span>`;
+    if (c) rel.innerHTML = `<span class="tag s${Math.min(c.stage, 3)}">${c.stage >= 2 ? '❤️' : '🧶'} ${a.partner.id} ${a.partner.name} · ${stageLabel(c)}</span>${heartsHTML(c)}`;
     else rel.innerHTML = a.heartbreakUntil > G.t ? '<span class="tag broken">💔 Just broke up</span>' : a.exes.length ? `<span class="tag single">Single · ex: ${a.exes.join(', ')}</span>` : '<span class="tag single">Single</span>';
     a.row.classList.toggle('sel', UI.pending && UI.pending.agent === a);
   }
   const cbox = $('#couples');
-  const sig = G.couples.map(c => `${c.id}:${c.stage}:${Math.round(c.aff)}:${c.date ? 1 : 0}`).join('|');
+  const sig = G.couples.map(c => `${c.id}:${c.stage}:${c.hearts()}:${c.together}:${c.dates}:${c.date ? 1 : 0}`).join('|');
   if (cbox.dataset.sig !== sig) {
     cbox.dataset.sig = sig;
     cbox.innerHTML = G.couples.length ? '' : '<div class="empty">No red threads yet. Click (or pinch) one person, then another.</div>';
     for (const c of G.couples) {
       const d = document.createElement('div'); d.className = 'couple';
       d.innerHTML = `<div><b style="background:${c.a.color}">${c.a.id}</b>${c.a.name} <span class="heart">${c.stage >= 2 ? '❤️' : '🧶'}</span> <b style="background:${c.b.color}">${c.b.id}</b>${c.b.name}</div>
-        <div class="meta">${STAGES[c.stage]} · affection ${Math.round(c.aff)} · ${c.dates} date${c.dates === 1 ? '' : 's'}${c.date ? ` · next date ${whenStr(c.date.start)}` : ''}</div>
+        <div class="meta">${heartsHTML(c)} ${stageLabel(c)}${c.together ? ` · 🏠 ${locName(c.homeId)}` : ''} · ${c.dates} date${c.dates === 1 ? '' : 's'}${c.date ? ` · next date ${whenStr(c.date.start)}` : ''}</div>
         <div class="acts"><button class="watch">👀 Watch them</button><button class="cut">✂️ Cut the thread</button></div>`;
       d.querySelector('.watch').onclick = () => { Director.follow(c.a, 12); };
       d.querySelector('.cut').onclick = () => { endCouple(c, 'cut'); };
@@ -387,6 +414,9 @@ function drawOverlay(views, hands) {
     const y0 = SH_ - lb - 70 - (lines.length - 1) * 22;
     lines.forEach((l, i) => { c.textAlign = 'center'; c.strokeStyle = 'rgba(0,0,0,.75)'; c.lineWidth = 4; c.strokeText(l, SW_ / 2, y0 + i * 22); c.fillStyle = '#fff6d6'; c.fillText(l, SW_ / 2, y0 + i * 22); });
     c.globalAlpha = 1;
+  }
+  for (const k of G.confetti) {
+    c.save(); c.translate(k.x * SW_, k.y * SH_); c.rotate(k.r); c.fillStyle = k.col; c.fillRect(-4, -2, 8, 4); c.restore();
   }
   const cd = D.cards[0];
   if (cd) {
@@ -457,7 +487,7 @@ function ambient(dt) {
       const p = vis[i], q = vis[j];
       if (p.partner === q || dist(p, q) > 70) continue;
       const [l1, l2] = pick(L.smallTalk);
-      p.say(l1, 2.6); setTimeout(() => q.say(l2, 2.6), 1300);
+      p.say(l1, 3, 'say', q); setTimeout(() => q.say(l2, 3, 'say', p), 1500);
       return;
     }
   }
@@ -499,6 +529,14 @@ function frame(now) {
   for (const f of G.floats) f.t += dt; G.floats = G.floats.filter(f => f.t < 1.8);
   for (const h of G.hearts) { h.t += dt; h.x += h.vx * dt; h.y += h.vy * dt; } G.hearts = G.hearts.filter(h => h.t < h.life);
   for (const s of G.snaps) s.t += dt; G.snaps = G.snaps.filter(s => s.t < 1.4);
+  for (const r of G.rockets) {
+    r.t += dt; if (r.t < 0) continue;
+    r.y += r.vy * dt; r.vy += 60 * dt;
+    if (r.t > 0.75) { r.done = true; for (let i = 0; i < 46; i++) { const a = Math.random() * Math.PI * 2, v = rand(30, 90); G.sparks.push({ x: r.x, y: r.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, col: Math.random() < 0.2 ? '#ffffff' : r.col, t: 0, life: rand(1, 1.8) }); } if (Math.random() < 0.5) sfx('pop'); }
+  }
+  G.rockets = G.rockets.filter(r => !r.done);
+  for (const s of G.sparks) { s.t += dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 40 * dt; s.vx *= 0.98; } G.sparks = G.sparks.filter(s => s.t < s.life);
+  for (const k of G.confetti) { k.t += dt; k.x += k.vx * dt; k.y += k.vy * dt; k.r += k.vr * dt; } G.confetti = G.confetti.filter(k => k.y < 1.1);
   if (G.binds) { for (const b of G.binds) b.t += dt; G.binds = G.binds.filter(b => b.t < 1.2); }
   if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('#toast').classList.remove('show'); }
 
