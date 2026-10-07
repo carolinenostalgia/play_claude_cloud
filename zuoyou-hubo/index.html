@@ -153,7 +153,7 @@ body {
 #pageL { box-shadow: inset -18px 0 22px -14px rgba(60,40,20,.35); }
 #pageR { box-shadow: inset 18px 0 22px -14px rgba(60,40,20,.35); }
 .page canvas.vid, .page canvas.ink { position: absolute; inset: 0; width: 100%; height: 100%; }
-.page .vid { mix-blend-mode: multiply; opacity: .88; }
+.page .vid { mix-blend-mode: multiply; opacity: .74; }
 .page .layer { position: absolute; inset: 0; box-sizing: border-box; padding: 12% 10% 8%; transition: opacity .5s; }
 .page .layer[hidden] { display: block !important; opacity: 0; pointer-events: none; }
 .intro-l { display: flex; flex-direction: column; align-items: center; text-align: center; }
@@ -186,13 +186,13 @@ body {
 .actions .btn.ghost { font-size: calc(var(--w) * .046); }
 .actions small { font: italic 400 calc(var(--w) * .034)/1.4 var(--f-body); color: var(--ink-soft); text-align: center; }
 
-.mark { position: absolute; top: 9%; display: flex; align-items: baseline; gap: .3em; font: 600 calc(var(--w) * .07)/1 var(--f-display); color: rgba(29,24,19,.55); }
-.mark span { font: 400 calc(var(--w) * .09)/1 var(--f-han); color: rgba(184,50,31,.55); }
+.mark { position: absolute; top: 9%; display: flex; align-items: baseline; gap: .3em; font: 600 calc(var(--w) * .07)/1 var(--f-display); color: var(--ink); text-shadow: 0 0 8px var(--paper), 0 0 3px var(--paper), 0 0 1px var(--paper); }
+.mark span { font: 400 calc(var(--w) * .09)/1 var(--f-han); color: var(--zhu); }
 #pageL .mark { left: 10%; }
 #pageR .mark { right: 10%; }
 .hud { position: absolute; left: 10%; right: 10%; bottom: 5.5%; display: flex; align-items: center; gap: .6em;
-  font: 600 calc(var(--w) * .045)/1 var(--f-display); text-shadow: 0 0 6px var(--paper); }
-.meter { flex: 1; height: calc(var(--h) * .01); background: rgba(29,24,19,.15); border-radius: 99px; overflow: hidden; }
+  font: 600 calc(var(--w) * .045)/1 var(--f-display); text-shadow: 0 0 8px var(--paper), 0 0 3px var(--paper); }
+.meter { flex: 1; height: calc(var(--h) * .012); background: rgba(255,248,232,.75); box-shadow: 0 0 0 1px rgba(29,24,19,.25); border-radius: 99px; overflow: hidden; }
 .meter i { display: block; height: 100%; width: 0; background: var(--ink); border-radius: inherit; transition: width .25s; }
 .prompt { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 0 12%;
   font: 600 calc(var(--w) * .075)/1.25 var(--f-display); color: var(--ink); pointer-events: none; transition: opacity .3s; text-shadow: 0 0 10px var(--paper), 0 0 4px var(--paper); }
@@ -859,11 +859,23 @@ function drawInk(now) {
     g.setTransform(k, 0, 0, k, 0, 0);
     const pw = pages[i].offsetWidth, ph = pages[i].offsetHeight, S = Math.min(pw, ph);
     g.clearRect(0, 0, pw, ph);
-    if (state === 'ready' || state === 'count' || state === 'play') {      // faint guide shape
-      g.save(); g.strokeStyle = 'rgba(184,50,31,.35)'; g.lineWidth = 1.5; g.setLineDash([5, 7]);
-      g.beginPath();
+    if (state === 'ready' || state === 'count' || state === 'play') {
+      // guide shape: a pale halo under a bold vermilion dash, so it reads over any camera background
+      g.save(); g.beginPath();
       if (i === 0) g.arc(pw / 2, ph * .52, S * .3, 0, Math.PI * 2); else g.rect(pw / 2 - S * .3, ph * .52 - S * .3, S * .6, S * .6);
-      g.stroke(); g.restore();
+      g.strokeStyle = 'rgba(255,248,232,.9)'; g.lineWidth = S * .026; g.stroke();
+      g.strokeStyle = 'rgba(184,50,31,.95)'; g.lineWidth = S * .013; g.setLineDash([S * .045, S * .03]); g.stroke();
+      g.restore();
+      // seconds left, written large inside the circle and the square, where the eyes already are
+      if (state === 'play') {
+        const left = Math.max(0, Math.ceil((ROUND - (now - roundStart)) / 1000));
+        g.save(); g.font = `600 ${S * .26}px "EB Garamond", Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.lineJoin = 'round'; g.lineWidth = S * .02; g.strokeStyle = 'rgba(255,248,232,.8)';
+        g.strokeText(String(left), pw / 2, ph * .525);
+        g.fillStyle = left <= 5 ? 'rgba(184,50,31,.85)' : 'rgba(184,50,31,.5)';
+        g.fillText(String(left), pw / 2, ph * .525);
+        g.restore();
+      }
     }
     // Ink: each short run of points is one curved path through the midpoints, so joints stay
     // smooth; older runs fade and faster runs draw thinner, like a brush.
@@ -877,16 +889,18 @@ function drawInk(now) {
       const age = (now - b.t) / 5000; if (age > 1) continue;
       let len = 0; for (let j = 1; j < run.length; j++) len += Math.hypot(run[j].x - run[j - 1].x, run[j].y - run[j - 1].y);
       const v = len / Math.max(16, b.t - a.t);                                   // px per ms
-      g.strokeStyle = `rgba(29,24,19,${(1 - age) * .9})`;
-      g.lineWidth = clamp(S * .026 - v * S * .018, S * .007, S * .028);
+      const lw = clamp(S * .026 - v * S * .018, S * .009, S * .028);
       g.beginPath(); g.moveTo(a.x, a.y);
       for (let j = 1; j < run.length - 1; j++) g.quadraticCurveTo(run[j].x, run[j].y, (run[j].x + run[j + 1].x) / 2, (run[j].y + run[j + 1].y) / 2);
-      g.lineTo(b.x, b.y); g.stroke();
+      g.lineTo(b.x, b.y);
+      g.strokeStyle = `rgba(255,248,232,${(1 - age) * .85})`; g.lineWidth = lw + S * .014; g.stroke();   // pale halo
+      g.strokeStyle = `rgba(29,24,19,${(1 - age) * .95})`; g.lineWidth = lw; g.stroke();
     }
     const tip = tips[i];
     if (tip && (state === 'ready' || state === 'count' || state === 'play')) {
-      g.fillStyle = 'rgba(184,50,31,.95)';
-      g.beginPath(); g.arc(tip.x, tip.y, S * .018, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(tip.x, tip.y, S * .022, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(184,50,31,.95)'; g.fill();
+      g.strokeStyle = '#fff8e8'; g.lineWidth = S * .008; g.stroke();
     }
   });
 }
