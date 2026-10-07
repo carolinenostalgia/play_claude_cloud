@@ -11,7 +11,7 @@ import urllib.request
 
 PAGE = pathlib.Path(__file__).with_name("index.html")
 # Characters the script writes at runtime (numerals, counters, scores).
-EXTRA = "0123456789.%·/:,!?'’“”…– abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+EXTRA = "0123456789.%·/:,!?×'’“”…– abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 # (family name, Google Fonts query, weight, style)
 FACES = [("Cormorant Garamond", "Cormorant+Garamond:wght@600", "600", "normal"),
          ("Cormorant Garamond", "Cormorant+Garamond:ital,wght@1,500", "500", "italic"),
