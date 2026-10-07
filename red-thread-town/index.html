@@ -60,8 +60,10 @@ body.roster-open #roster { transform: none; }
 .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #eee; color: #555; white-space: nowrap; }
 .tag.s0 { background: #ffe8ec; color: #c0284a; } .tag.s1 { background: #ffd6e0; color: #b0123a; } .tag.s2, .tag.s3 { background: var(--red); color: #fff; }
 .tag.broken { background: #dfe3ea; color: #48526a; }
-.bar { flex: 1; height: 5px; background: #eee; border-radius: 3px; overflow: hidden; max-width: 80px; }
-.bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff8fa3, var(--red)); }
+.hearts { color: var(--red); font-size: 13px; letter-spacing: 1px; white-space: nowrap; }
+.hearts i { font-style: normal; color: #ff9fb2; }
+.hearts b { color: #d9d4dc; font-weight: 400; }
+.person .home { font-size: 11px; color: var(--muted); }
 
 /* Event log */
 #logBox { position: fixed; left: 10px; top: 60px; width: 300px; max-height: 34vh; z-index: 3; pointer-events: none; }
@@ -69,7 +71,7 @@ body.roster-open #roster { transform: none; }
 #log .ln { background: rgba(20,20,30,.55); color: #fff; font-size: 12px; padding: 5px 9px; border-radius: 10px; margin-bottom: 4px; line-height: 1.45; width: fit-content; max-width: 100%; }
 #log .ln .t { opacity: .6; margin-right: 6px; font-size: 11px; }
 #log .ln.new { animation: pop .4s; }
-body:not(.log-open) #log .ln:nth-child(n+5) { display: none; }
+body:not(.log-open) #log .ln:nth-child(n+4) { display: none; }
 @keyframes pop { from { transform: translateX(-12px); opacity: 0; } }
 
 /* Camera preview */
