@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>留声机拆解</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&display=swap">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<style>
+/* Layout: the 3D stage fills the window; a step card and a waveform card dock at the bottom, part labels float over the scene. */
+:root {
+  --bg: #15110d;
+  --bg-glow: #3a2b1d;
+  --card: rgba(26, 21, 16, .84);
+  --line: rgba(255, 234, 204, .14);
+  --text: #f4ead9;
+  --soft: #b8a891;
+  --amber: #f2b45a;
+  --f-head: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --f-body: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; overflow: hidden; color: var(--text); font: 14px/1.7 var(--f-body);
+  background: radial-gradient(ellipse 80% 70% at 50% 40%, var(--bg-glow), var(--bg) 70%) var(--bg);
+  -webkit-tap-highlight-color: transparent;
+}
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+button {
+  font: inherit; color: var(--text); background: rgba(255, 240, 220, .06); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 14px; cursor: pointer; transition: background .2s, border-color .2s;
+}
+button:hover { background: rgba(255, 240, 220, .12); }
+button.on, button.primary { border-color: var(--amber); color: var(--amber); }
+button:disabled { opacity: .35; cursor: default; }
+
+.top {
+  position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 12px; padding: 16px; pointer-events: none;
+}
+.top > * { pointer-events: auto; }
+h1 { font: 700 22px/1.3 var(--f-head); margin: 0; letter-spacing: .04em; }
+.title p { margin: 2px 0 0; color: var(--soft); font-size: 12px; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+#labels { position: fixed; inset: 0; pointer-events: none; }
+.lbl {
+  position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; white-space: nowrap;
+  font-size: 12px; line-height: 1; padding: 4px 8px; border-radius: 999px;
+  background: rgba(20, 16, 12, .32); border: 1px solid rgba(255, 234, 204, .1); color: var(--text);
+  text-shadow: 0 0 3px rgba(0, 0, 0, .9), 0 0 8px rgba(0, 0, 0, .6);
+  transition: opacity .25s, border-color .2s, color .2s;
+}
+#leaders { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+#leaders line { stroke: rgba(255, 234, 204, .45); stroke-width: 1; }
+#leaders circle { fill: rgba(255, 234, 204, .8); }
+#leaders .on line { stroke: var(--amber); }
+#leaders .on circle { fill: var(--amber); }
+.lbl.on { border-color: var(--amber); color: var(--amber); }
+.lbl.on { animation: lblBlink .9s ease-in-out infinite; }
+.lbl.dim { opacity: .35 !important; }
+@keyframes lblBlink { 50% { background: rgba(242, 180, 90, .2); box-shadow: 0 0 12px rgba(242, 180, 90, .4); } }
+.term {
+  color: var(--amber); cursor: pointer; border-bottom: 1px dashed currentColor; padding: 0 1px; border-radius: 3px;
+  transition: background .15s;
+}
+.term:hover, .term:focus-visible { background: rgba(242, 180, 90, .2); outline: none; }
+#lanes { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .lbl.on { animation: none; } }
+
+#partCard {
+  position: fixed; top: 76px; left: 16px; width: min(300px, calc(100vw - 32px)); box-sizing: border-box;
+}
+#partCard h3 { margin: 0 0 4px; font: 700 16px/1.4 var(--f-head); color: var(--amber); }
+#partCard p { margin: 0; color: var(--text); }
+#partCard .x { position: absolute; top: 8px; right: 8px; padding: 0 9px; line-height: 24px; }
+
+.dock {
+  position: fixed; left: 16px; right: 16px; bottom: 16px; display: flex; gap: 12px;
+  align-items: flex-end; justify-content: space-between; pointer-events: none;
+}
+.card {
+  pointer-events: auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.steps { flex: 0 1 440px; min-width: 0; }
+.stepHead { display: flex; align-items: center; justify-content: space-between; color: var(--soft); font-size: 12px; }
+#dots { display: flex; gap: 6px; }
+#dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); cursor: pointer; }
+#dots i.on { background: var(--amber); }
+#stepTitle { margin: 6px 0 4px; font: 700 18px/1.4 var(--f-head); }
+#stepText { margin: 0; min-height: 5.1em; }
+.nav { display: flex; justify-content: space-between; margin-top: 10px; }
+.wave { flex: 0 0 320px; padding: 12px 14px; }
+.waveHead { font-size: 12px; color: var(--soft); margin-bottom: 6px; }
+#lanes { display: block; width: 100%; height: 176px; }
+.note { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--soft); }
+
+@media (max-width: 720px) {
+  h1 { font-size: 16px; white-space: nowrap; }
+  .top { padding: 12px 16px; }
+  .tools { gap: 6px; flex-wrap: nowrap; }
+  .title p { display: none; }
+  .tools button { padding: 4px 10px; font-size: 12px; }
+  #partCard { top: 60px; }
+  .lbl { font-size: 11px; padding: 3px 6px; }
+  .dock { flex-direction: column; align-items: stretch; gap: 8px; bottom: 12px; }
+  .steps, .wave { flex: none; }
+  .steps { padding: 12px 14px; }
+  #stepTitle { font-size: 16px; margin: 4px 0 2px; }
+  #stepText { font-size: 13px; line-height: 1.6; min-height: 0; max-height: 8.2em; overflow-y: auto; }
+  .wave { order: -1; padding: 8px 12px; }
+  #lanes { height: 124px; }
+  .note { display: none; }
+}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<svg id="leaders" aria-hidden="true"></svg>
+<div id="labels"></div>
+
+<header class="top">
+  <div class="title">
+    <h1>留声机是怎么发声的</h1>
+    <p>拖动旋转 · 滚轮或双指缩放 · 点零件看说明</p>
+  </div>
+  <div class="tools">
+    <button id="btnExplode">拆开</button>
+    <button id="btnSound">开声音</button>
+    <button id="btnPause">暂停</button>
+  </div>
+</header>
+
+<aside id="partCard" class="card" hidden>
+  <button class="x" aria-label="关闭">×</button>
+  <h3></h3>
+  <p></p>
+</aside>
+
+<section class="dock">
+  <div class="card steps">
+    <div class="stepHead"><span id="stepNo"></span><div id="dots"></div></div>
+    <h2 id="stepTitle"></h2>
+    <p id="stepText"></p>
+    <div class="nav"><button id="prev">上一步</button><button id="next" class="primary">下一步</button></div>
+  </div>
+  <div class="card wave">
+    <div class="waveHead">同一个波形，一路传下去</div>
+    <canvas id="lanes"></canvas>
+    <p class="note">动画里的振动放慢、放大了。真实的振动每秒几百到几千次，针尖的摆动不到 0.1 毫米。</p>
+  </div>
+</section>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ---------- renderer, camera, lights ---------- */
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(36, 1, 0.05, 100);
+camera.position.set(6.4, 4.4, 7.6);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 1.6, 0);
+controls.minDistance = 1;
+controls.maxDistance = 18;
+controls.maxPolarAngle = Math.PI * 0.53;
+
+scene.add(new THREE.HemisphereLight(0xfff0d8, 0x2a2018, 0.7));
+const key = new THREE.DirectionalLight(0xffe0b2, 2.4);
+key.position.set(4, 9, 5);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 25 });
+key.shadow.bias = -0.0004;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x9db8ff, 0.7);
+rim.position.set(-6, 3, -5);
+scene.add(rim);
+
+const floor = new THREE.Mesh(new THREE.CircleGeometry(9, 64), new THREE.ShadowMaterial({ opacity: 0.38 }));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+/* ---------- procedural textures ---------- */
+function canvasTex(size, draw) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+const woodTex = canvasTex(512, (g, n) => {
+  g.fillStyle = '#5e341c'; g.fillRect(0, 0, n, n);
+  for (let y = 0; y < n; y++) {
+    const v = Math.sin(y * 0.09 + Math.sin(y * 0.013) * 4) * 0.5 + 0.5;
+    g.fillStyle = `rgba(${30 + v * 60}, ${14 + v * 26}, ${6 + v * 10}, ${0.35 + v * 0.3})`;
+    g.fillRect(0, y, n, 1);
+  }
+  for (let i = 0; i < 260; i++) {
+    g.fillStyle = `rgba(20,10,4,${Math.random() * 0.25})`;
+    g.fillRect(Math.random() * n, Math.random() * n, 40 + Math.random() * 160, 1);
+  }
+});
+const recordTex = canvasTex(1024, (g, n) => {
+  const c = n / 2;
+  g.fillStyle = '#0c0b0b'; g.fillRect(0, 0, n, n);
+  for (let r = c * 0.36; r < c * 0.985; r += 1.6) {
+    const l = 14 + Math.random() * 16;
+    g.strokeStyle = `rgb(${l},${l},${l + 2})`;
+    g.lineWidth = 0.9;
+    g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.stroke();
+  }
+  g.fillStyle = '#8c2d20'; g.beginPath(); g.arc(c, c, c * 0.34, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#d9b45e'; g.lineWidth = 3;
+  g.beginPath(); g.arc(c, c, c * 0.31, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = '#e8c878'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = 'bold 54px serif'; g.fillText('78 RPM', c, c - c * 0.17);
+  g.font = '30px serif'; g.fillText('SIDE  A', c, c + c * 0.17);
+});
+
+/* ---------- materials ---------- */
+const mk = {
+  wood: () => new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.5, metalness: 0, transparent: true }),
+  brass: () => new THREE.MeshStandardMaterial({ color: 0xd2a04a, metalness: 1, roughness: 0.27, side: THREE.DoubleSide }),
+  nickel: () => new THREE.MeshStandardMaterial({ color: 0xc4c7cc, metalness: 1, roughness: 0.25 }),
+  steel: () => new THREE.MeshStandardMaterial({ color: 0x7c8088, metalness: 0.9, roughness: 0.4 }),
+  dark: () => new THREE.MeshStandardMaterial({ color: 0x1c1916, metalness: 0.4, roughness: 0.45 }),
+  felt: () => new THREE.MeshStandardMaterial({ color: 0x2c4a36, roughness: 0.95 }),
+  record: () => new THREE.MeshStandardMaterial({ map: recordTex, roughness: 0.32, metalness: 0.25 }),
+  mica: () => new THREE.MeshStandardMaterial({ color: 0xe9d39c, metalness: 0.3, roughness: 0.2, side: THREE.DoubleSide }),
+  ball: () => new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 1, roughness: 0.18 }),
+};
+function mesh(geo, mat, x = 0, y = 0, z = 0) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  return m;
+}
+
+/* ---------- parts registry ---------- */
+const PARTS = {
+  cabinet:   { name: '木箱',   info: '装发条和齿轮的木箱，也是整台机器的底座。' },
+  crank:     { name: '摇柄',   info: '人力从这里进来：摇几十圈，把能量存进发条。整台留声机不用电。' },
+  spring:    { name: '发条',   info: '卷紧的钢带弹簧，像一块「机械电池」。它慢慢松开，持续推动齿轮转动。' },
+  gears:     { name: '齿轮',   info: '大齿轮带小齿轮，把发条缓慢的转动变成转盘需要的转速，同时带动调速器。' },
+  governor:  { name: '调速器', info: '三个小铁球随轴高速旋转。转得越快，铁球甩得越开，摩擦片刹得越紧，于是转速稳定在每分钟约 78 转。转速不稳，音调就会忽高忽低。' },
+  platter:   { name: '转盘',   info: '包着绒布的金属盘，托着唱片匀速转动。' },
+  record:    { name: '唱片',   info: '声音的「存储器」：一条连续的螺旋沟槽，从外圈绕到中心。沟壁左右弯曲的形状，就是录音时的声音波形。' },
+  needle:    { name: '唱针',   info: '钢针的尖端卡在沟槽里。沟壁往左弯，针就被推向左；往右弯，就被推向右。振动从这里开始。' },
+  stylusbar: { name: '针杆',   info: '一根小杠杆，支点在唱头边缘。下端装唱针，上端连着振膜中心，把针尖的抖动放大后传给振膜。' },
+  diaphragm: { name: '振膜',   info: '一片很薄的云母片，像鼓皮。被针杆前后推拉，就一下压缩、一下拉松面前的空气，机械振动在这里变成声波。' },
+  soundbox:  { name: '唱头',   info: '装振膜的扁圆盒（也叫音箱）。正面是振膜，背面接空心的唱臂，让声波只往唱臂里走。' },
+  arm:       { name: '唱臂',   info: '一根空心的管子。它让唱头能沿着螺旋沟槽慢慢移向中心，同时把声波导向喇叭。' },
+  horn:      { name: '喇叭',   info: '从细到粗慢慢张开的铜管。振膜只有硬币大小，推不动多少空气；喇叭逐渐变粗，让同样的振动带动越来越多的空气，声音就响了。这是输出端。' },
+};
+const pickables = [];
+const partMeshes = {};
+function tag(obj, id) {
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    o.userData.part = id;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    pickables.push(o);
+    (partMeshes[id] ||= []).push(o);
+  });
+  return obj;
+}
+// Objects that slide apart in the exploded view: position = base + offset * explode.
+const explodables = [];
+function explodable(obj, offset) {
+  explodables.push({ obj, base: obj.position.clone(), offset: new THREE.Vector3(...offset) });
+  return obj;
+}
+
+/* ---------- geometry helpers ---------- */
+function gearGeo(teeth, r, depth) {
+  const s = new THREE.Shape();
+  const rr = r * 0.86, step = Math.PI * 2 / teeth;
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step;
+    const pts = [[rr, a], [r, a + step * 0.22], [r, a + step * 0.5], [rr, a + step * 0.72]];
+    pts.forEach(([rad, ang], k) => {
+      const x = Math.cos(ang) * rad, y = Math.sin(ang) * rad;
+      (i === 0 && k === 0) ? s.moveTo(x, y) : s.lineTo(x, y);
+    });
+  }
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, r * 0.18, 0, Math.PI * 2, true);
+  s.holes.push(hole);
+  const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: false, curveSegments: 6 });
+  g.rotateX(-Math.PI / 2);
+  g.translate(0, -depth / 2, 0);
+  return g;
+}
+const cyl = (r, h, seg = 40, hSeg = 1, open = false) => new THREE.CylinderGeometry(r, r, h, seg, hSeg, open);
+
+/* ---------- layout constants ---------- */
+const TOP = 1.1;                                  // cabinet top surface
+const C = new THREE.Vector3(-0.25, 0, 0.15);      // platter axis (x, z)
+const P = new THREE.Vector3(1.25, TOP, -1.25);    // tone-arm pivot base
+const ARM_LEN = 1.7;                              // pivot -> soundbox center
+const TIP = ARM_LEN + 0.075;                      // pivot -> needle tip, along the arm
+const ARM_Y = 0.46;                               // arm height above the cabinet top
+
+/* ---------- cabinet ---------- */
+const cabinetMat = mk.wood();
+const cabinet = tag(new THREE.Group(), 'cabinet');
+cabinet.add(mesh(new THREE.BoxGeometry(3.3, TOP - 0.12, 3.3), cabinetMat, 0, 0.06 + (TOP - 0.12) / 2, 0));
+cabinet.add(mesh(new THREE.BoxGeometry(3.42, 0.12, 3.42), cabinetMat, 0, 0.06, 0));
+cabinet.add(mesh(new THREE.BoxGeometry(3.36, 0.05, 3.36), cabinetMat, 0, TOP - 0.025, 0));
+cabinet.traverse(o => { if (o.isMesh) o.userData.ghostable = true; });
+scene.add(cabinet);
+
+/* ---------- motor: crank, spring barrel, gears, governor ---------- */
+const B = new THREE.Vector3(-0.85, 0, -0.25);     // spring barrel axis
+const G = new THREE.Vector3(0.08, 0, 0.48);       // governor axis
+
+const barrel = new THREE.Group();
+barrel.position.set(B.x, 0.42, B.z);
+const barrelShell = tag(mesh(cyl(0.45, 0.28), mk.steel()), 'spring');
+barrel.add(barrelShell);
+const spiralPts = [];
+for (let i = 0; i <= 420; i++) {
+  const a = i / 420 * Math.PI * 2 * 7;
+  const r = 0.07 + 0.33 * i / 420;
+  spiralPts.push(new THREE.Vector3(Math.cos(a) * r, 0.15, Math.sin(a) * r));
+}
+const springCoil = tag(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(spiralPts), 600, 0.009, 6), mk.nickel()), 'spring');
+barrel.add(springCoil);
+const bigGear = tag(mesh(gearGeo(44, 0.5, 0.05), mk.brass()), 'gears');
+bigGear.position.y = 0.24;
+barrel.add(bigGear);
+barrel.add(tag(mesh(cyl(0.035, 0.6), mk.steel(), 0, 0.05, 0), 'gears'));
+scene.add(explodable(barrel, [-0.45, -0.02, -0.25]));
+
+const shaft = new THREE.Group();
+shaft.position.set(C.x, 0, C.z);
+shaft.add(tag(mesh(cyl(0.035, TOP - 0.2), mk.steel(), 0, 0.2 + (TOP - 0.2) / 2, 0), 'gears'));
+const pinion = tag(mesh(gearGeo(20, 0.22, 0.05), mk.brass(), 0, 0.66, 0), 'gears');
+const midGear = tag(mesh(gearGeo(30, 0.33, 0.05), mk.brass(), 0, 0.35, 0), 'gears');
+shaft.add(pinion, midGear);
+scene.add(explodable(shaft, [0, 0, 0]));
+
+const governor = new THREE.Group();
+governor.position.set(G.x, 0, G.z);
+governor.add(tag(mesh(cyl(0.025, 0.75), mk.steel(), 0, 0.6, 0), 'governor'));
+const govGear = tag(mesh(gearGeo(12, 0.14, 0.05), mk.brass(), 0, 0.35, 0), 'governor');
+governor.add(govGear);
+governor.add(tag(mesh(cyl(0.13, 0.025), mk.nickel(), 0, 0.93, 0), 'governor'));
+const govSpin = new THREE.Group();
+governor.add(govSpin);
+const govBalls = [];
+for (let i = 0; i < 3; i++) {
+  const arm = new THREE.Group();
+  arm.rotation.y = i * Math.PI * 2 / 3;
+  const ball = tag(mesh(new THREE.SphereGeometry(0.05, 20, 14), mk.ball(), 0.12, 0.7, 0), 'governor');
+  const leafTop = tag(mesh(new THREE.BoxGeometry(0.008, 0.2, 0.03), mk.nickel()), 'governor');
+  const leafBot = tag(mesh(new THREE.BoxGeometry(0.008, 0.2, 0.03), mk.nickel()), 'governor');
+  arm.add(ball, leafTop, leafBot);
+  govSpin.add(arm);
+  govBalls.push({ ball, leafTop, leafBot });
+}
+governor.add(tag(mesh(cyl(0.045, 0.03), mk.steel(), 0, 0.52, 0), 'governor'));
+governor.add(tag(mesh(cyl(0.045, 0.03), mk.steel(), 0, 0.88, 0), 'governor'));
+scene.add(explodable(governor, [0.55, -0.02, 0.45]));
+
+const crank = new THREE.Group();
+crank.position.set(-1.66, 0.42, B.z);
+crank.add(tag(mesh(cyl(0.03, 0.9).rotateZ(Math.PI / 2), mk.nickel(), 0.35, 0, 0), 'crank'));
+crank.add(tag(mesh(new THREE.BoxGeometry(0.05, 0.42, 0.05), mk.nickel(), -0.08, -0.19, 0), 'crank'));
+crank.add(tag(mesh(cyl(0.045, 0.2).rotateZ(Math.PI / 2), mk.dark(), -0.2, -0.38, 0), 'crank'));
+scene.add(explodable(crank, [-0.7, 0, 0]));
+
+/* ---------- turntable and record ---------- */
+const platter = tag(new THREE.Group(), 'platter');
+platter.position.set(C.x, TOP, C.z);
+platter.add(mesh(cyl(1.25, 0.06, 72), mk.nickel(), 0, 0.03, 0));
+platter.add(mesh(cyl(1.22, 0.012, 72), mk.felt(), 0, 0.066, 0));
+platter.add(mesh(cyl(0.022, 0.16), mk.nickel(), 0, 0.12, 0));
+scene.add(explodable(platter, [0, 0.45, 0]));
+
+const record = tag(new THREE.Group(), 'record');
+record.position.set(C.x, TOP + 0.072, C.z);
+const recMats = [mk.dark(), mk.record(), mk.dark()];
+record.add(new THREE.Mesh(cyl(1.2, 0.022, 96), recMats));
+record.children[0].position.y = 0.011;
+scene.add(explodable(record, [0, 2.45, 0]));
+const RECORD_TOP = TOP + 0.072 + 0.022;
+
+/* ---------- tone arm, soundbox, stylus ---------- */
+const armRoot = new THREE.Group();
+armRoot.position.copy(P);
+scene.add(explodable(armRoot, [0.45, 0.95, 0.35]));
+const armMat = mk.nickel();
+const armParts = tag(new THREE.Group(), 'arm');
+armParts.add(mesh(cyl(0.11, 0.08), mk.nickel(), 0, 0.04, 0));
+armParts.add(mesh(cyl(0.055, ARM_Y), armMat, 0, ARM_Y / 2, 0));
+armParts.add(mesh(new THREE.SphereGeometry(0.07, 20, 14), armMat, 0, ARM_Y, 0));
+const armCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0, ARM_Y, 0),
+  new THREE.Vector3(0, ARM_Y + 0.03, ARM_LEN * 0.45),
+  new THREE.Vector3(0, ARM_Y, ARM_LEN - 0.1),
+]);
+armParts.add(new THREE.Mesh(new THREE.TubeGeometry(armCurve, 40, 0.045, 16), armMat));
+armRoot.add(armParts);
+
+// Soundbox internals spread out along the arm in the exploded view.
+const sbShell = tag(new THREE.Group(), 'soundbox');
+sbShell.position.set(0, ARM_Y, ARM_LEN - 0.07);
+sbShell.add(mesh(cyl(0.2, 0.06, 48).rotateX(Math.PI / 2), mk.nickel()));
+sbShell.add(mesh(new THREE.TorusGeometry(0.2, 0.018, 10, 48), mk.nickel(), 0, 0, 0.04));
+sbShell.add(mesh(cyl(0.2, 0.08, 48, 1, true).rotateX(Math.PI / 2), mk.nickel(), 0, 0, 0.07));
+armRoot.add(explodable(sbShell, [0, 0, -0.1]));
+
+const diaGeo = new THREE.RingGeometry(0.0001, 0.17, 48, 10);
+const diaBase = diaGeo.attributes.position.array.slice();
+const diaphragm = tag(mesh(diaGeo, mk.mica()), 'diaphragm');
+diaphragm.position.set(0, ARM_Y, ARM_LEN + 0.02);
+armRoot.add(explodable(diaphragm, [0, 0, 0.3]));
+
+const sbFront = tag(mesh(new THREE.TorusGeometry(0.19, 0.022, 12, 48), mk.nickel()), 'soundbox');
+sbFront.position.set(0, ARM_Y, ARM_LEN + 0.045);
+armRoot.add(explodable(sbFront, [0, 0, 0.55]));
+
+// The stylus bar pivots near the soundbox rim: needle below the pivot, the long end up to the diaphragm.
+const PIVOT_Y = 0.25, BAR_TOP = ARM_Y - PIVOT_Y, NEEDLE_LEN = PIVOT_Y - (RECORD_TOP - TOP);
+const stylus = new THREE.Group();
+stylus.position.set(0, PIVOT_Y, ARM_LEN + 0.075);
+const bar = tag(new THREE.Group(), 'stylusbar');
+bar.add(mesh(new THREE.BoxGeometry(0.022, BAR_TOP + 0.05, 0.018), mk.nickel(), 0, (BAR_TOP - 0.05) / 2, 0));
+bar.add(mesh(cyl(0.008, 0.06).rotateX(Math.PI / 2), mk.nickel(), 0, BAR_TOP, -0.028));
+bar.add(mesh(cyl(0.016, 0.03), mk.dark(), 0, -0.05, 0));
+bar.add(mesh(new THREE.SphereGeometry(0.014, 12, 8), mk.brass(), 0.014, 0, 0));
+const needle = tag(mesh(new THREE.ConeGeometry(0.009, NEEDLE_LEN - 0.05, 12).rotateX(Math.PI), mk.steel()), 'needle');
+needle.position.y = -0.05 - (NEEDLE_LEN - 0.05) / 2;
+stylus.add(bar, needle);
+armRoot.add(explodable(stylus, [0, -0.05, 0.85]));
+
+/* ---------- horn ---------- */
+const hornAll = tag(new THREE.Group(), 'horn');
+scene.add(explodable(hornAll, [0.9, 1.55, -1.3]));
+const H0 = new THREE.Vector3(1.25, 2.05, -1.35);
+const HDIR = new THREE.Vector3(-0.45, 0.55, 1).normalize();
+const HORN_LEN = 2.3, HORN_R = 1.12;
+const neckCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(P.x, TOP + ARM_Y + 0.03, P.z),
+  new THREE.Vector3(P.x + 0.04, TOP + ARM_Y + 0.2, P.z - 0.22),
+  H0.clone().addScaledVector(HDIR, -0.25),
+  H0.clone(),
+]);
+const brassMat = mk.brass();
+hornAll.add(new THREE.Mesh(new THREE.TubeGeometry(neckCurve, 40, 0.066, 16), brassMat));
+const prof = [];
+for (let i = 0; i <= 48; i++) {
+  const t = i / 48;
+  prof.push(new THREE.Vector2(0.066 + (HORN_R - 0.066) * Math.pow(t, 2.8), t * HORN_LEN));
+}
+prof.push(new THREE.Vector2(HORN_R + 0.04, HORN_LEN - 0.01));
+const bell = new THREE.Mesh(new THREE.LatheGeometry(prof, 72), brassMat);
+bell.position.copy(H0);
+bell.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), HDIR);
+hornAll.add(bell);
+tag(hornAll, 'horn');
+
+/* ---------- sound path: glowing pulses and rings from the bell ---------- */
+const PULSES = 70;
+const pulseMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false, blending: THREE.AdditiveBlending });
+const pulses = new THREE.InstancedMesh(new THREE.SphereGeometry(0.026, 10, 8), pulseMat, PULSES);
+pulses.renderOrder = 10;
+pulses.frustumCulled = false;
+scene.add(pulses);
+const ringMat = () => new THREE.MeshBasicMaterial({ color: 0xf2b45a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+const rings = Array.from({ length: 8 }, () => {
+  const m = new THREE.Mesh(new THREE.TorusGeometry(1, 0.01, 6, 96), ringMat());
+  m.visible = false;
+  scene.add(m);
+  return { m, age: 99 };
+});
+
+/* ---------- part labels ---------- */
+const labelDefs = [
+  ['horn', bell, [0, HORN_LEN * 0.82, 0]],
+  ['arm', armRoot, [0, ARM_Y + 0.1, ARM_LEN * 0.45]],
+  ['soundbox', sbShell, [0, 0.24, 0]],
+  ['diaphragm', diaphragm, [0.13, 0.13, 0]],
+  ['stylusbar', bar, [0.04, BAR_TOP * 0.7, 0]],
+  ['needle', needle, [0, -0.03, 0]],
+  ['record', record, [0.75, 0.03, 0.55], true],
+  ['platter', platter, [-1.15, 0.07, 0.35], true],
+  ['crank', crank, [-0.2, -0.38, 0], true],
+  ['spring', barrel, [-0.3, 0.18, 0.3], true],
+  ['gears', barrel, [0.4, 0.3, -0.35], true],
+  ['governor', governor, [0, 0.98, 0], true],
+  ['cabinet', cabinet, [1.65, 0.6, 1.65]],
+].map(([id, obj, at, fixed]) => {
+  const el = document.createElement('div');
+  el.className = 'lbl';
+  el.textContent = PARTS[id].name;
+  el.addEventListener('click', () => showPart(id));
+  document.getElementById('labels').appendChild(el);
+  const lead = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  lead.innerHTML = '<line/><circle r="2.5"/>';
+  document.getElementById('leaders').appendChild(lead);
+  return { id, obj, at: new THREE.Vector3(...at), fixed, el, lead, slot: 0 };
+});
+
+/* ---------- the guided tour ---------- */
+// In step text, [word](id,id) becomes a term the reader can point at; the named parts flash on the model.
+// tags put a role in front of a part's label; seq flashes the focus parts one after another, in order.
+const POWER = 'crank,spring,gears,governor,platter';
+const STEPS = [
+  { title: '先看整体',
+    text: '这是一台手摇留声机，全程不用电。分四块看：[动力](' + POWER + ')从摇柄进来，让唱片转；[输入](record)是唱片上的沟槽；[振动](needle,stylusbar,diaphragm)发生在唱头里；[输出](horn)是喇叭放出的声音。亮色的字可以点，模型上对应的零件会闪。',
+    cam: [6.4, 4.4, 7.6], target: [0, 1.6, 0], focus: ['crank', 'record', 'soundbox', 'horn'],
+    tags: { crank: '动力', record: '输入', soundbox: '振动', horn: '输出' }, labels: ['horn', 'arm', 'soundbox', 'record', 'crank'] },
+  { title: '动力：只管转，不管响', ghost: 1, seq: true,
+    text: '[摇柄](crank)把[发条](spring)卷紧；发条慢慢松开，通过[齿轮](gears)带动[转盘](platter)。[调速器](governor)的三个小铁球转得越快甩得越开，摩擦越大，把转速稳在每分钟约 78 转。这一套只负责让唱片匀速转，自己不发声。',
+    cam: [-4.6, 2.4, 4.6], target: [-0.35, 0.65, 0], focus: ['crank', 'spring', 'gears', 'governor', 'platter'], crank: true,
+    tags: { crank: '① 人力进来', spring: '② 存能量', gears: '③ 传动', governor: '④ 稳住转速', platter: '⑤ 转起来' } },
+  { title: '输入：刻在沟槽里的声音', lane: 0,
+    text: '[唱片](record)上只有一条螺旋沟槽，从外圈一直绕到中心。录音时声音让刻刀左右摆动，所以沟壁弯弯曲曲，弯的形状就是声音的波形：弯得密，音调高；弯得大，声音响。沟槽擦过[唱针](needle)，就是整个声音之路的输入。',
+    cam: [0.9, 3.6, 3.4], target: [-0.1, 1.15, 0.2], focus: ['record'], tags: { record: '输入', needle: '读沟槽' } },
+  { title: '唱针：振动从这里开始', lane: 1, follow: 'needle',
+    text: '[针尖](needle)卡在沟槽里。唱片一转，沟壁一会儿往左弯、一会儿往右弯，针尖就被推得来回抖。[针杆](stylusbar)是一根小杠杆，支点在[唱头](soundbox)边缘：针尖抖一点，上端摆得更多。',
+    offset: [1.3, 0.38, 0.45], focus: ['needle', 'stylusbar'], tags: { needle: '振动从这开始', stylusbar: '杠杆放大' } },
+  { title: '振膜：把抖动变成推空气', lane: 2, follow: 'diaphragm',
+    text: '[针杆](stylusbar)上端连着[振膜](diaphragm)中心。振膜是一片很薄的云母片，像鼓皮。它被前后推拉，就一下压缩、一下拉松面前的空气，机械振动在这里变成了声波。',
+    offset: [0.55, 0.12, 1.05], focus: ['diaphragm', 'stylusbar'], tags: { diaphragm: '变成声波', stylusbar: '推拉振膜' } },
+  { title: '唱臂和喇叭：输出', lane: 3, pulses: true,
+    text: '声波顺着空心的[唱臂](arm)跑进[喇叭](horn)。[振膜](diaphragm)只有硬币大小，推不动多少空气；喇叭从细到粗慢慢张开，让同样的振动带动越来越多的空气，声音就响了。其实声音的能量来自[发条](spring)：唱片被发条带着转，针只是被沟槽拖着走。',
+    cam: [4.6, 3.6, 6.2], target: [0.45, 1.95, -0.1], focus: ['arm', 'horn'], tags: { arm: '传送', horn: '输出' } },
+  { title: '拆开看看', explode: 1, ghost: 1,
+    text: '上面是声音那一路：[唱片](record) → [唱针](needle) → [针杆](stylusbar) → [振膜](diaphragm) → [唱臂](arm) → [喇叭](horn)。下面是动力那一路：[摇柄](crank) → [发条](spring) → [齿轮](gears) → [调速器](governor) → [转盘](platter)。点任意零件看说明，拖动换角度。',
+    cam: [8.1, 5.6, 9.2], target: [0.45, 2.1, 0], labels: Object.keys(PARTS) },
+];
+
+/* ---------- state ---------- */
+let step = 0;
+let explodeOn = false, explodeK = 0, ghostK = 0;
+let running = true, sim = 0;
+let selected = null;
+let fly = null;                                  // camera flight in progress
+let followId = null;
+let hot = null;                                  // parts the reader is pointing at in the text
+let hotUntil = 0;
+
+const $ = id => document.getElementById(id);
+const dotsEl = $('dots');
+STEPS.forEach((_, i) => {
+  const d = document.createElement('i');
+  d.title = `第 ${i + 1} 步`;
+  d.addEventListener('click', () => goStep(i));
+  dotsEl.appendChild(d);
+});
+
+function goStep(i) {
+  step = Math.max(0, Math.min(STEPS.length - 1, i));
+  const s = STEPS[step];
+  $('stepNo').textContent = `第 ${step + 1} / ${STEPS.length} 步`;
+  $('stepTitle').textContent = s.title;
+  $('stepText').innerHTML = s.text.replace(/\[([^\]]+)\]\(([\w,]+)\)/g, '<span class="term" data-parts="$2" tabindex="0">$1</span>');
+  for (const L of labelDefs) L.el.textContent = (s.tags?.[L.id] ? s.tags[L.id] + ' · ' : '') + PARTS[L.id].name;
+  hot = null;
+  [...dotsEl.children].forEach((d, k) => d.classList.toggle('on', k === step));
+  $('prev').disabled = step === 0;
+  $('next').disabled = step === STEPS.length - 1;
+  explodeOn = !!s.explode;
+  $('btnExplode').classList.toggle('on', explodeOn);
+  $('btnExplode').textContent = explodeOn ? '合上' : '拆开';
+  followId = s.follow || null;
+  hidePart();
+  startFlight();
+}
+function startFlight() {
+  const s = STEPS[step];
+  let target, pos;
+  if (s.follow) {
+    target = followPoint();
+    const off = new THREE.Vector3(...s.offset).multiplyScalar(innerWidth < 720 ? 1.7 : 1);
+    pos = armRoot.localToWorld(armRoot.worldToLocal(target.clone()).add(off));
+  } else {
+    target = new THREE.Vector3(...s.target);
+    pos = new THREE.Vector3(...s.cam).sub(target).multiplyScalar(innerWidth < 720 ? 1.3 : 1).add(target);
+  }
+  fly = { t: 0, p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: target };
+}
+function followPoint() {
+  const obj = followId === 'needle' ? needle : diaphragm;
+  return obj.getWorldPosition(new THREE.Vector3());
+}
+function pointAt(ids, ms = 2600) { hot = ids; hotUntil = performance.now() + ms; }
+const stepText = $('stepText');
+stepText.addEventListener('pointerover', e => { const t = e.target.closest('.term'); if (t) pointAt(t.dataset.parts.split(','), 1e9); });
+stepText.addEventListener('pointerout', e => { if (e.target.closest('.term') && e.pointerType === 'mouse') hotUntil = performance.now() + 400; });
+stepText.addEventListener('click', e => { const t = e.target.closest('.term'); if (t) pointAt(t.dataset.parts.split(',')); });
+stepText.addEventListener('focusin', e => { const t = e.target.closest('.term'); if (t) pointAt(t.dataset.parts.split(','), 1e9); });
+stepText.addEventListener('focusout', () => { hotUntil = performance.now() + 400; });
+const LANE_PARTS = [['record'], ['needle'], ['diaphragm'], ['horn']];
+$('lanes').addEventListener('click', e => {
+  const r = e.currentTarget.getBoundingClientRect();
+  pointAt(LANE_PARTS[Math.min(3, Math.floor((e.clientY - r.top) / r.height * 4))]);
+});
+$('prev').onclick = () => goStep(step - 1);
+$('next').onclick = () => goStep(step + 1);
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') goStep(step + 1);
+  if (e.key === 'ArrowLeft') goStep(step - 1);
+});
+$('btnExplode').onclick = () => {
+  explodeOn = !explodeOn;
+  $('btnExplode').classList.toggle('on', explodeOn);
+  $('btnExplode').textContent = explodeOn ? '合上' : '拆开';
+};
+$('btnPause').onclick = () => {
+  running = !running;
+  $('btnPause').textContent = running ? '暂停' : '继续';
+  $('btnPause').classList.toggle('on', !running);
+  if (audio.ctx) running && audio.on ? audio.ctx.resume() : audio.ctx.suspend();
+};
+
+/* ---------- part card and picking ---------- */
+const card = $('partCard');
+function showPart(id) {
+  selected = id;
+  card.querySelector('h3').textContent = PARTS[id].name;
+  card.querySelector('p').textContent = PARTS[id].info;
+  card.hidden = false;
+}
+function hidePart() { selected = null; card.hidden = true; }
+card.querySelector('.x').onclick = hidePart;
+
+const ray = new THREE.Raycaster();
+let downAt = null;
+canvas.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; fly = null; });
+canvas.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  const ndc = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickables, false)
+    .find(h => !(h.object.userData.ghostable && ghostK > 0.5));
+  hit ? showPart(hit.object.userData.part) : hidePart();
+});
+canvas.addEventListener('wheel', () => { fly = null; }, { passive: true });
+
+/* ---------- sound: a short public-domain tune through an old-gramophone filter ---------- */
+const audio = { ctx: null, on: false, analyser: null, buf: null, level: 0 };
+const TUNE = [ // Twinkle, Twinkle, Little Star: [semitones from C5, beats]
+  [0,1],[0,1],[7,1],[7,1],[9,1],[9,1],[7,2],[5,1],[5,1],[4,1],[4,1],[2,1],[2,1],[0,2],
+  [7,1],[7,1],[5,1],[5,1],[4,1],[4,1],[2,2],[7,1],[7,1],[5,1],[5,1],[4,1],[4,1],[2,2],
+];
+function initAudio() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value = 0.5;
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 320;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+  const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1100; pk.gain.value = 7; pk.Q.value = 0.9;
+  hp.connect(lp); lp.connect(pk); pk.connect(master);
+  const analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+  master.connect(analyser); analyser.connect(ctx.destination);
+  // surface noise: soft hiss plus sparse crackles
+  const n = ctx.sampleRate * 3, nb = ctx.createBuffer(1, n, ctx.sampleRate), d = nb.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * 0.025 + (Math.random() < 0.0006 ? (Math.random() * 2 - 1) * 0.6 : 0);
+  const noise = ctx.createBufferSource(); noise.buffer = nb; noise.loop = true;
+  const ng = ctx.createGain(); ng.gain.value = 0.5; noise.connect(ng); ng.connect(hp); noise.start();
+  // slow pitch wobble ("wow") like a real turntable
+  const wow = ctx.createOscillator(); wow.frequency.value = 0.55;
+  const wowAmt = ctx.createGain(); wowAmt.gain.value = 9; wow.connect(wowAmt); wow.start();
+  Object.assign(audio, { ctx, analyser, buf: new Float32Array(analyser.fftSize), hp, wowAmt, next: ctx.currentTime + 0.1, idx: 0 });
+  setInterval(schedule, 60);
+}
+function schedule() {
+  if (!audio.on || !running) return;
+  const { ctx } = audio, beat = 0.42;
+  while (audio.next < ctx.currentTime + 0.25) {
+    const [semi, beats] = TUNE[audio.idx % TUNE.length];
+    const f = 523.25 * Math.pow(2, semi / 12), t = audio.next, dur = beats * beat;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.32, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.06, t + dur * 0.9);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    g.connect(audio.hp);
+    for (const [type, mul, det] of [['sawtooth', 1, 0], ['triangle', 2, 4]]) {
+      const o = ctx.createOscillator(); o.type = type; o.frequency.value = f * mul; o.detune.value = det;
+      audio.wowAmt.connect(o.detune);
+      o.connect(g); o.start(t); o.stop(t + dur + 0.02);
+    }
+    audio.next += dur;
+    audio.idx++;
+  }
+}
+$('btnSound').onclick = () => {
+  if (!audio.ctx) initAudio();
+  audio.on = !audio.on;
+  if (audio.on) { audio.next = Math.max(audio.next, audio.ctx.currentTime + 0.05); if (running) audio.ctx.resume(); }
+  else audio.ctx.suspend();
+  $('btnSound').textContent = audio.on ? '关声音' : '开声音';
+  $('btnSound').classList.toggle('on', audio.on);
+};
+
+/* ---------- the visible "sound wave": slowed down so the eye can follow ---------- */
+let env = 1;
+function wave(t) {
+  return env * (0.62 * Math.sin(t * 6.3) + 0.3 * Math.sin(t * 15.1 + 1) + 0.16 * Math.sin(t * 29 + 2)) / 1.08;
+}
+
+/* ---------- waveform lanes ---------- */
+const lanes = $('lanes'), lg = lanes.getContext('2d');
+const LANES = ['① 沟槽（俯视）', '② 唱针 左右抖', '③ 振膜 前后推', '④ 空气 疏密波'];
+function drawLanes() {
+  const dpr = Math.min(devicePixelRatio, 2), w = lanes.clientWidth, h = lanes.clientHeight;
+  if (lanes.width !== Math.round(w * dpr)) { lanes.width = Math.round(w * dpr); lanes.height = Math.round(h * dpr); }
+  lg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  lg.clearRect(0, 0, w, h);
+  const lh = h / 4, active = STEPS[step].lane, W = 2.2;
+  for (let k = 0; k < 4; k++) {
+    const cy = lh * k + lh * 0.64, amp = lh * 0.22;
+    const hot = active === undefined || active === k;
+    const col = active === k ? '#f2b45a' : hot ? 'rgba(244,234,217,.75)' : 'rgba(244,234,217,.28)';
+    lg.fillStyle = active === k ? '#f2b45a' : 'rgba(184,168,145,.9)';
+    lg.font = '11px system-ui, sans-serif';
+    lg.fillText(LANES[k], 2, lh * k + 11);
+    lg.strokeStyle = col; lg.lineWidth = active === k ? 1.8 : 1.2;
+    const head = w * (k === 0 ? 0.5 : 0.82);
+    if (k === 0) {
+      // groove walls passing under the needle
+      for (const off of [-0.42, 0.42]) {
+        lg.beginPath();
+        for (let x = 0; x <= w; x += 2) {
+          const y = cy - (wave(sim + (x - head) / w * W) + off) * amp;
+          x ? lg.lineTo(x, y) : lg.moveTo(x, y);
+        }
+        lg.stroke();
+      }
+    } else if (k < 3) {
+      lg.beginPath();
+      for (let x = 0; x <= head; x += 2) {
+        const y = cy - wave(sim - (head - x) / w * W - (k - 1) * 0.02) * amp * 0.8;
+        x ? lg.lineTo(x, y) : lg.moveTo(x, y);
+      }
+      lg.stroke();
+    } else {
+      // pressure field moving away from the horn: bright = compressed air
+      for (let x = 0; x <= w; x += 4) {
+        const p = wave(sim - x / w * W - 0.1);
+        lg.fillStyle = active === k ? `rgba(242,180,90,${0.12 + 0.45 * (p + 1) / 2})` : `rgba(244,234,217,${(hot ? 0.06 : 0.03) + (hot ? 0.3 : 0.12) * (p + 1) / 2})`;
+        lg.fillRect(x, cy - amp, 2.4, amp * 2);
+      }
+    }
+    if (k < 3) {
+      const y = cy - wave(sim) * amp * (k === 0 ? 1 : 0.8);
+      lg.fillStyle = col;
+      lg.beginPath(); lg.arc(head, y, active === k ? 3.5 : 2.5, 0, Math.PI * 2); lg.fill();
+    }
+  }
+}
+
+/* ---------- resize: keep the machine centered in the space above the dock on phones ---------- */
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  const narrow = w < 720;
+  const dockH = narrow ? document.querySelector('.dock').getBoundingClientRect().height + 12 : 0;
+  camera.fov = narrow ? 46 : 36;
+  if (dockH) camera.setViewOffset(w, h, 0, dockH * 0.5, w, h); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+
+/* ---------- label layout ----------
+   Each label tries a short list of spots around its part and takes the first one that
+   doesn't overlap a label already placed or the page's own panels. Keeping last frame's
+   spot when it is still free stops labels from jumping around as the scene moves. */
+const GAP = 14, PAD = 4;
+const SLOTS = [
+  (ax, ay, w, h) => [ax - w / 2, ay - GAP - h],              // above
+  (ax, ay, w, h) => [ax + GAP, ay - h / 2],                  // right
+  (ax, ay, w, h) => [ax - GAP - w, ay - h / 2],              // left
+  (ax, ay, w, h) => [ax - w / 2, ay + GAP],                  // below
+  (ax, ay, w, h) => [ax - w / 2, ay - GAP * 2.6 - h],        // higher up
+  (ax, ay, w, h) => [ax + GAP, ay - GAP * 1.6 - h],          // up and right
+  (ax, ay, w, h) => [ax - GAP - w, ay - GAP * 1.6 - h],      // up and left
+  (ax, ay, w, h) => [ax + GAP, ay + GAP * 0.6],              // down and right
+  (ax, ay, w, h) => [ax - GAP - w, ay + GAP * 0.6],          // down and left
+  (ax, ay, w, h) => [ax - w / 2, ay + GAP * 2.6],            // further down
+];
+const overlap = (a, b) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+function panelRects() {
+  return [...document.querySelectorAll('.title, .tools, .dock .card, #partCard')]
+    .filter(el => !el.hidden)
+    .map(el => { const r = el.getBoundingClientRect(); return [r.left - PAD, r.top - PAD, r.right + PAD, r.bottom + PAD]; });
+}
+function placeLabels(shown, s) {
+  const W = innerWidth, H = innerHeight;
+  const placed = panelRects();
+  const items = [];
+  for (const L of labelDefs) {
+    tmpV.copy(L.at);
+    L.fixed ? tmpV.add(L.obj.position) : L.obj.localToWorld(tmpV);
+    tmpV.project(camera);
+    const ax = (tmpV.x + 1) / 2 * W, ay = (1 - tmpV.y) / 2 * H;
+    L.vis = shown.has(L.id) && tmpV.z < 1 && ax > 0 && ax < W && ay > 0 && ay < H;
+    if (L.vis) items.push({ L, ax, ay, w: L.el.offsetWidth, h: L.el.offsetHeight });
+  }
+  // anchors themselves are obstacles too, so a label never covers another part's dot
+  for (const it of items) placed.push([it.ax - 3, it.ay - 3, it.ax + 3, it.ay + 3]);
+  for (const it of items) {
+    const { L, ax, ay, w, h } = it;
+    const order = [L.slot, ...SLOTS.keys()].filter((v, i, a) => a.indexOf(v) === i);
+    let best = null, bestCost = Infinity;
+    for (const k of order) {
+      const [x, y] = SLOTS[k](ax, ay, w, h);
+      const box = [x - PAD, y - PAD, x + w + PAD, y + h + PAD];
+      let cost = 0;
+      for (const r of placed) cost += overlap(box, r);
+      if (x < 4 || y < 4 || x + w > W - 4 || y + h > H - 4) cost += 1e6;
+      if (cost < bestCost) { best = { k, x, y, box }; bestCost = cost; }
+      if (cost === 0) break;
+    }
+    L.slot = best.k;
+    placed.push(best.box);
+    it.x = best.x; it.y = best.y;
+  }
+  for (const L of labelDefs) {
+    const it = items.find(i => i.L === L);
+    L.el.style.opacity = it ? 1 : 0;
+    L.el.style.pointerEvents = it ? 'auto' : 'none';
+    L.lead.style.display = it ? '' : 'none';
+    const lit = hot ? hot.includes(L.id) : s.seq ? s.focus[seqIdxNow] === L.id : (s.focus || []).includes(L.id) || selected === L.id;
+    L.el.classList.toggle('on', lit);
+    L.el.classList.toggle('dim', !!it && !!hot && !lit);
+    L.lead.classList.toggle('on', lit);
+    if (!it) continue;
+    L.el.style.transform = `translate(${it.x}px, ${it.y}px)`;
+    // leader runs from the part to the nearest point on the label's edge
+    const ex = Math.min(Math.max(it.ax, it.x), it.x + it.w), ey = Math.min(Math.max(it.ay, it.y), it.y + it.h);
+    const [line, dot] = L.lead.children;
+    line.setAttribute('x1', it.ax); line.setAttribute('y1', it.ay);
+    line.setAttribute('x2', ex); line.setAttribute('y2', ey);
+    dot.setAttribute('cx', it.ax); dot.setAttribute('cy', it.ay);
+  }
+}
+
+/* ---------- animation loop ---------- */
+const clock = new THREE.Clock();
+const tmpM = new THREE.Matrix4(), tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpS = new THREE.Vector3();
+const glowCol = new THREE.Color(0xffd27a);
+const amber = new THREE.Color(0xf2b45a), black = new THREE.Color(0), tmpC = new THREE.Color();
+const FLOW = 0.9;                                // speed of the pulses along the sound path
+const ease = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+let seqIdxNow = -1;
+let platterAngle = 0, crankAngle = 0, wall = 0;
+const OMEGA = 78 / 60 * Math.PI * 2;            // 78 revolutions per minute
+const D = Math.hypot(C.x - P.x, C.z - P.z), PHI = Math.atan2(C.x - P.x, C.z - P.z);
+
+function frame() {
+  const rawDt = clock.getDelta(), dt = Math.min(rawDt, 0.05);
+  wall += dt;
+  const s = STEPS[step];
+  if (running) sim += dt;
+
+  // loudness from the real audio drives the visible wave's size
+  if (audio.on && audio.analyser && running) {
+    audio.analyser.getFloatTimeDomainData(audio.buf);
+    let sum = 0; for (const v of audio.buf) sum += v * v;
+    audio.level += (Math.sqrt(sum / audio.buf.length) - audio.level) * 0.2;
+    env += (0.35 + Math.min(audio.level * 9, 1.1) - env) * 0.25;
+  } else env += (1 - env) * 0.1;
+
+  // exploded view and see-through cabinet
+  explodeK += ((explodeOn ? 1 : 0) - explodeK) * Math.min(1, dt * 3.2);
+  if (hot && performance.now() > hotUntil) hot = null;
+  const hiddenHot = hot?.some(id => ['spring', 'gears', 'governor'].includes(id));
+  const ghostGoal = Math.max(explodeOn ? 1 : 0, s.ghost || 0, hiddenHot ? 1 : 0);
+  ghostK += (ghostGoal - ghostK) * Math.min(1, dt * 3.2);
+  const ek = ease(Math.min(1, Math.max(0, explodeK)));
+  for (const e of explodables) e.obj.position.copy(e.base).addScaledVector(e.offset, ek);
+  cabinetMat.opacity = 1 - 0.86 * ghostK;
+  cabinetMat.depthWrite = ghostK < 0.05;
+  cabinet.traverse(o => { if (o.isMesh) o.castShadow = ghostK < 0.5; });
+
+  // motor: everything turns together, geared from the platter speed
+  const w = running ? OMEGA : 0;
+  platterAngle += w * dt;
+  platter.rotation.y = record.rotation.y = shaft.rotation.y = -platterAngle;
+  barrel.rotation.y = platterAngle * 0.22 / 0.5;
+  governor.rotation.y = platterAngle * 0.33 / 0.14;
+  const fling = running ? 1 : 0.2;
+  govBalls.forEach(({ ball, leafTop, leafBot }) => {
+    const r = 0.08 + 0.06 * fling;
+    ball.position.set(r, 0.7, 0);
+    for (const [leaf, y0] of [[leafTop, 0.88], [leafBot, 0.52]]) {
+      const dy = 0.7 - y0;
+      leaf.position.set(r / 2, (y0 + 0.7) / 2, 0);
+      leaf.rotation.z = Math.atan2(-r, dy);
+      leaf.scale.y = Math.hypot(r, dy) / 0.2;
+    }
+  });
+  if (s.crank && running) crankAngle += dt * 2.2;
+  crank.rotation.x = crankAngle;
+
+  // tone arm slowly swings inward along the spiral groove (one pass every 60 s)
+  const rr = 1.08 - 0.5 * ((sim % 60) / 60);
+  const alpha = Math.acos(Math.min(1, (TIP * TIP + D * D - rr * rr) / (2 * TIP * D)));
+  armRoot.rotation.y = PHI + alpha;
+
+  // needle wiggle, lever, diaphragm bulge (exaggerated)
+  const v = wave(sim);
+  stylus.rotation.x = v * 0.2;
+  const push = -Math.sin(v * 0.2) * BAR_TOP;
+  const pos = diaphragm.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = diaBase[i * 3], y = diaBase[i * 3 + 1];
+    pos.array[i * 3 + 2] = push * Math.max(0, 1 - (x * x + y * y) / (0.17 * 0.17));
+  }
+  pos.needsUpdate = true;
+  diaphragm.geometry.computeVertexNormals();
+
+  // sound pulses through arm and horn, rings out of the bell
+  const showFlow = explodeK < 0.08 && (s.pulses || step === 0);
+  pulses.visible = showFlow;
+  if (showFlow) {
+    const pts = [
+      new THREE.Vector3(0, ARM_Y, ARM_LEN), new THREE.Vector3(0, ARM_Y + 0.03, ARM_LEN * 0.5),
+      new THREE.Vector3(0, ARM_Y, 0.02),
+    ].map(p => armRoot.localToWorld(p));
+    pts.push(...neckCurve.points.slice(1));
+    pts.push(H0.clone().addScaledVector(HDIR, HORN_LEN * 0.5), H0.clone().addScaledVector(HDIR, HORN_LEN));
+    const path = new THREE.CatmullRomCurve3(pts);
+    const len = path.getLength();
+    for (let i = 0; i < PULSES; i++) {
+      const u = (i / PULSES + sim * FLOW / len) % 1;
+      const p = wave(sim - u * len / FLOW);
+      const k = (p + 1) / 2;
+      path.getPointAt(u, tmpV);
+      const widen = u > 0.72 ? 1 + (u - 0.72) * 6 : 1;
+      tmpS.setScalar((0.5 + k * 0.9) * widen);
+      tmpM.compose(tmpV, tmpQ, tmpS);
+      pulses.setMatrixAt(i, tmpM);
+      pulses.setColorAt(i, tmpC.copy(amber).multiplyScalar(0.15 + k * 0.85 * (s.pulses ? 1 : 0.6)));
+    }
+    pulses.instanceMatrix.needsUpdate = true;
+    pulses.instanceColor.needsUpdate = true;
+  }
+  const mouth = H0.clone().addScaledVector(HDIR, HORN_LEN);
+  rings.forEach(r => { r.age += running ? dt : 0; });
+  if (showFlow && running) {
+    const freshest = Math.min(...rings.map(r => r.age));
+    if (freshest > 0.45) {
+      const r = rings.reduce((a, b) => (a.age > b.age ? a : b));
+      r.age = 0;
+      r.m.userData.amp = 0.5 + Math.abs(wave(sim)) * 0.6;
+    }
+  }
+  rings.forEach(({ m, age }) => {
+    const life = age / 2.2;
+    m.visible = showFlow && life < 1;
+    if (!m.visible) return;
+    m.position.copy(mouth).addScaledVector(HDIR, age * 0.9);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), HDIR);
+    m.scale.setScalar(HORN_R * (1 + age * 0.45));
+    m.material.opacity = (1 - life) * 0.55 * (m.userData.amp || 1) * (s.pulses ? 1 : 0.5);
+  });
+
+  // highlight the parts this step talks about
+  // pointed-at parts blink hard and the rest go quiet; otherwise the step's parts blink,
+  // one after another when the step is a sequence (the power train, in order)
+  const blink = k => 0.5 + 0.5 * Math.sin(wall * k);
+  const seqIdx = s.seq ? Math.floor(wall / 1.1) % s.focus.length : -1;
+  seqIdxNow = seqIdx;
+  const level = id => {
+    if (hot) return hot.includes(id) ? 0.15 + 1.1 * blink(13) : 0;
+    if (selected === id) return 0.2 + 0.8 * blink(9);
+    const i = (s.focus || []).indexOf(id);
+    if (i < 0) return 0;
+    if (s.seq) return i === seqIdx ? 0.15 + 1.0 * blink(11) : 0.1;
+    return 0.1 + 0.75 * blink(6);
+  };
+  for (const [id, list] of Object.entries(partMeshes)) {
+    const v = level(id);
+    for (const m of list) {
+      for (const mat of [].concat(m.material)) {
+        if (!mat.emissive) continue;
+        mat.emissive.copy(v ? glowCol : black);
+        mat.emissiveIntensity = v;
+      }
+    }
+  }
+
+  // camera: fly to the step's view, then keep following moving parts
+  if (fly) {
+    fly.t = Math.min(1, fly.t + Math.min(rawDt, 0.2) / 1.4);
+    const k = ease(fly.t);
+    if (followId) fly.t1 = followPoint();
+    camera.position.lerpVectors(fly.p0, fly.p1, k);
+    controls.target.lerpVectors(fly.t0, fly.t1, k);
+    if (fly.t >= 1) fly = null;
+  } else if (followId) {
+    const d = followPoint().sub(controls.target);
+    controls.target.add(d);
+    camera.position.add(d);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+
+  // labels follow their parts
+  const shown = new Set([...(s.labels || []), ...(s.focus || []), ...(hot || [])]);
+  if (explodeOn) Object.keys(PARTS).forEach(id => shown.add(id));
+  if (selected) shown.add(selected);
+  if (ghostK < 0.5) ['spring', 'gears', 'governor'].forEach(id => shown.delete(id));
+  placeLabels(shown, s);
+
+  drawLanes();
+  requestAnimationFrame(frame);
+}
+
+resize();
+goStep(0);
+startFlight();
+camera.position.copy(fly.p1);
+controls.target.copy(fly.t1);
+fly = null;
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
