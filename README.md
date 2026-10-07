@@ -18,6 +18,10 @@
 
 金庸《射雕英雄传》里老顽童的入门功夫：左手画圆，右手画方。整个页面是英文的，画面是一台折叠屏手机，轻触后像功夫秘籍一样展开，先播三幕水墨小动画讲故事（山洞里困了十五年、两手一圆一方、练成后一人当两人用），再到开始页，左页有师父示范「一手画圆、一手画方」。打开摄像头后，书页上能看到你的脸和手，用食指在空中画；也可以两根手指直接在屏幕上画。练功时手机下方一直有师父在打太极。手机正中有大号倒计时，练满 30 秒后手机合上，外屏显示称号（最高是 The Grandmaster）、几成修为和还要几年成为大侠。摄像头画面只在本机处理，不上传。
 
+## ink-lens：水墨镜
+
+打开摄像头，眼前的一切实时变成一幅水墨画：轮廓是墨线，明暗是深浅不同的墨晕，鲜红的东西保留一点朱红。画面里的桌、椅、杯、人等会被认出来，用朱印小字标出。点一下画面能放一盏灯笼、一盆盆景或一把茶壶；点在认出来的物件上，东西会跟着它走，镜头移动也不掉。手机默认用后置摄像头。画面只在本机处理，不上传。
+
 ## 素材与许可证
 
 - 水墨图标来自 [InkView](https://github.com/qybaihe/inkview)，MIT 许可证，见 `book-of-answers/assets/LICENSE-InkView.txt`
@@ -25,3 +29,4 @@
 - 夜当铺内嵌的字体（马善政、志莽行书、思源宋体）均为 SIL Open Font License，见 `six-realms/LICENSE-fonts.txt`；农历计算使用 [lunar-javascript](https://github.com/6tail/lunar-javascript)（MIT）
 - 3D 渲染使用 [three.js](https://threejs.org/)（MIT），从 CDN 加载；留声机的声音是一首公版童谣旋律，用 Web Audio 实时合成
 - 左右互搏的手势识别使用 [MediaPipe](https://github.com/google-ai-edge/mediapipe)（Apache License 2.0）的手部模型，文件放在 `zuoyou-hubo/vendor/`，许可证见 `zuoyou-hubo/vendor/LICENSE-mediapipe.txt`；页面内嵌的字体（Cormorant Garamond、EB Garamond、Caveat Brush、马善政楷书）均为 SIL Open Font License，见 `zuoyou-hubo/LICENSE-fonts.txt`
+- 水墨镜的物体识别使用 MediaPipe 的 EfficientDet-Lite0 模型（Apache License 2.0），文件在 `ink-lens/vendor/`，识别引擎与左右互搏共用 `zuoyou-hubo/vendor/`；内嵌字体见 `ink-lens/LICENSE-fonts.txt`
