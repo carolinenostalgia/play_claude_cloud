@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>红线小镇</title>
+<meta name="description" content="一座有 26 个居民的小镇。打开摄像头，用手指捏住两个小人，给他们牵上红线，看他们打电话、约会、表白、吵架、分手。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧶</text></svg>">
+<style>
+:root {
+  --red: #e0213f; --ink: #1d1d28; --paper: #fffaf3; --muted: #6b6b78; --line: rgba(0,0,0,.1);
+  --glass: rgba(255,250,243,.88);
+  --f: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #7fa66a; font-family: var(--f); color: var(--ink); -webkit-tap-highlight-color: transparent; }
+canvas#city { position: fixed; inset: 0; touch-action: none; display: block; }
+button { font: inherit; cursor: pointer; border: 0; }
+
+/* 顶栏 */
+#hud { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; pointer-events: none; z-index: 5; }
+#hud > * { pointer-events: auto; }
+.pill { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 999px; box-shadow: 0 2px 10px rgba(0,0,0,.15); padding: 6px 12px; font-size: 14px; display: flex; align-items: center; gap: 4px; }
+.logo { font-weight: 800; letter-spacing: 1px; }
+.logo span { color: var(--red); }
+#clock b { font-variant-numeric: tabular-nums; font-size: 16px; margin: 0 2px; }
+.seg { padding: 3px; gap: 2px; }
+.seg button, .pill > button { background: transparent; border-radius: 999px; padding: 4px 10px; font-size: 13px; color: var(--ink); }
+.seg button.on { background: var(--ink); color: #fff; }
+.btn { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 999px; box-shadow: 0 2px 10px rgba(0,0,0,.15); padding: 8px 14px; font-size: 14px; color: var(--ink); white-space: nowrap; }
+.btn.on { background: var(--ink); color: #fff; }
+.btn.red { background: var(--red); color: #fff; }
+.spacer { flex: 1; }
+
+/* 名单 */
+#roster { position: fixed; top: 60px; right: 10px; bottom: 10px; width: 320px; background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.2); z-index: 4; display: flex; flex-direction: column; transform: translateX(calc(100% + 20px)); transition: transform .3s; }
+body.roster-open #roster { transform: none; }
+#roster h3 { margin: 12px 14px 6px; font-size: 14px; color: var(--muted); font-weight: 600; }
+#roster .scroll { overflow-y: auto; padding: 0 8px 10px; flex: 1; }
+.couple { background: #fff; border-radius: 12px; padding: 8px 10px; margin: 6px 0; border: 1px solid #ffd0da; font-size: 13px; }
+.couple b, .person b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: #fff; font-size: 12px; margin-right: 4px; font-family: Arial Black, Arial, sans-serif; }
+.couple .meta { color: var(--muted); font-size: 12px; margin: 4px 0; }
+.couple .acts { display: flex; gap: 6px; }
+.couple .acts button { background: #f3eee6; border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+.couple .acts .cut { color: var(--red); }
+.empty { color: var(--muted); font-size: 13px; padding: 6px 4px; }
+.person { display: flex; gap: 6px; padding: 6px; border-radius: 12px; cursor: pointer; align-items: center; }
+.person:hover { background: rgba(0,0,0,.05); }
+.person.sel { background: #ffe3ea; outline: 2px solid var(--red); }
+.person canvas { width: 36px; height: 44px; flex: none; background: #eaf3df; border-radius: 8px; }
+.person .info { min-width: 0; flex: 1; }
+.person .nm { font-weight: 700; font-size: 14px; display: flex; align-items: center; flex-wrap: wrap; }
+.person .job { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 6px; }
+.person .st { font-size: 12px; color: #444; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.person .rel { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #eee; color: #555; white-space: nowrap; }
+.tag.s0 { background: #ffe8ec; color: #c0284a; } .tag.s1 { background: #ffd6e0; color: #b0123a; } .tag.s2, .tag.s3 { background: var(--red); color: #fff; }
+.tag.broken { background: #dfe3ea; color: #48526a; }
+.bar { flex: 1; height: 5px; background: #eee; border-radius: 3px; overflow: hidden; max-width: 80px; }
+.bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff8fa3, var(--red)); }
+
+/* 事件记录 */
+#logBox { position: fixed; left: 10px; top: 60px; width: 300px; max-height: 34vh; z-index: 3; pointer-events: none; }
+#log { overflow: hidden; max-height: 34vh; mask-image: linear-gradient(#000 70%, transparent); -webkit-mask-image: linear-gradient(#000 70%, transparent); }
+#log .ln { background: rgba(20,20,30,.55); color: #fff; font-size: 12px; padding: 5px 9px; border-radius: 10px; margin-bottom: 4px; line-height: 1.45; width: fit-content; max-width: 100%; }
+#log .ln .t { opacity: .6; margin-right: 6px; font-size: 11px; }
+#log .ln.new { animation: pop .4s; }
+body:not(.log-open) #log .ln:nth-child(n+5) { display: none; }
+@keyframes pop { from { transform: translateX(-12px); opacity: 0; } }
+
+/* 摄像头小窗 */
+#camBox { position: fixed; right: 10px; bottom: 10px; width: 200px; z-index: 4; display: none; }
+body.cam-on #camBox { display: block; }
+body.roster-open #camBox { right: 340px; }
+#camBox .frame { position: relative; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,.3); background: #222; aspect-ratio: 4/3; }
+#camBox video, #camBox canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+#camStatus { background: rgba(20,20,30,.7); color: #fff; font-size: 11px; padding: 5px 8px; border-radius: 8px; margin-top: 4px; line-height: 1.4; }
+
+#toast { position: fixed; top: 64px; left: 50%; transform: translate(-50%, -10px); background: rgba(20,20,30,.85); color: #fff; padding: 8px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: .25s; z-index: 6; pointer-events: none; max-width: calc(100% - 32px); text-align: center; }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+#hint { position: fixed; left: 50%; bottom: 110px; transform: translateX(-50%); font-size: 12px; color: #fff; background: rgba(180,10,40,.75); padding: 5px 12px; border-radius: 999px; z-index: 3; pointer-events: none; white-space: nowrap; }
+body.cam-on #hint, body.has-couple #hint { display: none; }
+
+/* 开场 */
+#intro { position: fixed; inset: 0; display: none; place-items: center; z-index: 10; background: rgba(30,10,20,.45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); padding: 16px; }
+body.intro #intro { display: grid; }
+.card { background: var(--paper); border-radius: 22px; max-width: 460px; width: 100%; padding: 26px 24px 20px; box-shadow: 0 20px 60px rgba(0,0,0,.35); max-height: calc(100vh - 32px); overflow-y: auto; }
+.card h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: 2px; }
+.card h1 span { color: var(--red); }
+.card .sub { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+.card ol { padding-left: 20px; margin: 0 0 16px; font-size: 14px; line-height: 1.7; }
+.card ol b { color: var(--red); }
+.card .row { display: flex; gap: 10px; flex-wrap: wrap; }
+.card .row .btn { flex: 1; padding: 12px; font-size: 15px; font-weight: 700; box-shadow: none; text-align: center; }
+.card .row .btn:not(.red) { background: #efe8de; }
+.card .fine { font-size: 11px; color: var(--muted); margin: 12px 0 0; }
+
+@media (max-width: 720px) {
+  #hud { gap: 6px; }
+  .logo { display: none; }
+  .btn { padding: 7px 10px; font-size: 13px; }
+  #roster { width: auto; left: 10px; top: 142px; }
+  body.roster-open #camBox { right: 10px; }
+  #logBox { top: 142px; width: calc(100% - 20px); max-height: 22vh; }
+  body:not(.log-open) #log .ln:nth-child(n+3) { display: none; }
+  #camBox { width: 130px; }
+  #hint { bottom: 64px; white-space: normal; text-align: center; width: max-content; max-width: calc(100% - 32px); }
+}
+</style>
+</head>
+<body class="intro">
+<canvas id="city"></canvas>
+
+<div id="hud">
+  <div class="pill logo">🧶 红线<span>小镇</span></div>
+  <div class="pill" id="clock">第 1 天</div>
+  <div class="pill seg">
+    <button data-speed="0" title="暂停（空格）">⏸</button>
+    <button data-speed="1" class="on" title="1 倍速">1×</button>
+    <button data-speed="2" title="2 倍速">2×</button>
+    <button data-speed="4" title="4 倍速">4×</button>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn on" id="camMode">🎬 导演镜头</button>
+  <button class="btn" id="camBtn">📷 摄像头</button>
+  <button class="btn" id="logBtn" title="展开/收起事件记录">📜</button>
+  <button class="btn" id="muteBtn" title="声音">🔊</button>
+  <button class="btn red" id="rosterBtn">👥 人物 & 红线</button>
+</div>
+
+<div id="logBox"><div id="log"></div></div>
+
+<aside id="roster">
+  <h3>🧶 红线</h3>
+  <div class="scroll" style="flex:none; max-height:34%"><div id="couples"></div></div>
+  <h3>👥 小镇居民（点一下跟随镜头）</h3>
+  <div class="scroll" id="people"></div>
+</aside>
+
+<div id="camBox">
+  <div class="frame"><video id="camVideo" playsinline muted></video><canvas id="camDots" width="320" height="240"></canvas></div>
+  <div id="camStatus">准备摄像头…</div>
+</div>
+
+<div id="hint">点一个小人，再点另一个 = 牵红线 · 拖动画面 = 自由镜头</div>
+<div id="toast"></div>
+
+<div id="intro">
+  <div class="card">
+    <h1>🧶 红线<span>小镇</span></h1>
+    <p class="sub">小镇里住着 26 个人，从 A 到 Z。他们每天起床、打车、上班、卖冰淇淋、裸奔、下棋……你是月老。</p>
+    <ol>
+      <li>打开摄像头，把手举起来，画面会拉远成<b>上帝视角</b>。</li>
+      <li>用<b>拇指和食指捏住</b>一个小人，再捏住另一个——两人之间就系上了<b>红线</b>。</li>
+      <li>把手放下，<b>导演镜头</b>会带你看他们打电话、约会、表白、吵架……</li>
+      <li>处不来就会<b>分手</b>，红线断掉，你可以重新给他们牵。</li>
+    </ol>
+    <div class="row">
+      <button class="btn red" id="introCam">📷 开摄像头，用手牵线</button>
+      <button class="btn" id="introPlay">🖱 先用鼠标 / 手指玩</button>
+    </div>
+    <p class="fine">摄像头画面只在你的设备上识别手势，不会上传。人物和故事都是虚构的。</p>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="engine.js"></script>
+<script src="render.js"></script>
+<script src="main.js"></script>
+<script type="module">
+// 手势识别：MediaPipe Hand Landmarker（文件在 vendor/ 里，和页面一起发布）
+const video = document.getElementById('camVideo');
+const dots = document.getElementById('camDots').getContext('2d');
+const WASM_URL = new URL('vendor/wasm/vision_wasm_internal.wasm', location.href).href;
+const MODEL_URL = new URL('vendor/hand_landmarker.task', location.href).href;
+const TOTAL = 12997248 + 7819105;
+let landmarker = null, lastVT = -1, loaded = 0, starting = null;
+const smooth = {}, pinchOn = {};
+let hands = [];
+
+async function fetchWithProgress(url, onP) {
+  const r = await fetch(url);
+  if (!r.ok || !r.body) return r.arrayBuffer();
+  const reader = r.body.getReader(), parts = [];
+  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); loaded += value.length; onP && onP(); }
+  return new Blob(parts).arrayBuffer();
+}
+async function start(status) {
+  if (starting) return starting;
+  starting = (async () => {
+    status('打开摄像头…');
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    await video.play();
+    const onP = () => status(`加载手势模型… ${Math.min(99, Math.round(loaded / TOTAL * 100))}%`);
+    onP();
+    const [model, mp, wasm] = await Promise.all([fetchWithProgress(MODEL_URL, onP), import('./vendor/vision_bundle.mjs'), fetchWithProgress(WASM_URL, onP)]);
+    const wasmBlobUrl = URL.createObjectURL(new Blob([wasm], { type: 'application/wasm' }));
+    const files = { wasmLoaderPath: new URL('vendor/wasm/vision_wasm_internal.js', location.href).href, wasmBinaryPath: wasmBlobUrl };
+    const opts = d => ({ baseOptions: { modelAssetBuffer: new Uint8Array(model), delegate: d }, runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: .5, minTrackingConfidence: .5 });
+    try { landmarker = await mp.HandLandmarker.createFromOptions(files, opts('GPU')); }
+    catch { landmarker = await mp.HandLandmarker.createFromOptions(files, opts('CPU')); }
+    HandInput.ready = true;
+  })();
+  starting.catch(() => { starting = null; });
+  return starting;
+}
+function poll(now, W, H) {
+  if (!landmarker || video.readyState < 2) return hands;
+  if (video.currentTime === lastVT) return hands;
+  lastVT = video.currentTime;
+  const res = landmarker.detectForVideo(video, now);
+  const vw = video.videoWidth || 640, vh = video.videoHeight || 480, asp = vw / vh;
+  dots.clearRect(0, 0, 320, 240);
+  const out = [];
+  (res.landmarks || []).forEach((lm, i) => {
+    const side = (res.handednesses && res.handednesses[i] && res.handednesses[i][0] && res.handednesses[i][0].categoryName) || ('H' + i);
+    let id = 'h' + side;
+    if (out.some(o => o.id === id)) id += '2';
+    const th = lm[4], ix = lm[8], w0 = lm[0], m9 = lm[9];
+    const d = Math.hypot((th.x - ix.x) * asp, th.y - ix.y), size = Math.hypot((w0.x - m9.x) * asp, w0.y - m9.y) || 0.1;
+    const ratio = d / size;
+    if (pinchOn[id]) { if (ratio > 0.5) pinchOn[id] = false; } else if (ratio < 0.3) pinchOn[id] = true;
+    const u = 1 - (th.x + ix.x) / 2, v = (th.y + ix.y) / 2;
+    const x = Math.min(1, Math.max(0, (u - 0.12) / 0.76)) * W, y = Math.min(1, Math.max(0, (v - 0.1) / 0.75)) * H;
+    const s = smooth[id];
+    const k = pinchOn[id] ? 0.35 : 0.5;
+    const p = s ? { x: s.x + (x - s.x) * k, y: s.y + (y - s.y) * k } : { x, y };
+    smooth[id] = p;
+    out.push({ id, x: p.x, y: p.y, pinch: !!pinchOn[id] });
+    dots.fillStyle = pinchOn[id] ? '#ff2d55' : '#7CFC00';
+    for (const q of lm) { dots.beginPath(); dots.arc(q.x * 320, q.y * 240, 2.4, 0, Math.PI * 2); dots.fill(); }
+  });
+  for (const id in smooth) if (!out.some(o => o.id === id)) { delete smooth[id]; delete pinchOn[id]; }
+  hands = out;
+  return hands;
+}
+const HandInput = window.HandInput = { ready: false, start, poll };
+</script>
+</body>
+</html>

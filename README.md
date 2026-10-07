@@ -18,6 +18,10 @@
 
 3D 的复杂功能腕表：月相、指针日历、陀飞轮。可以拖动旋转、双指缩放，七章导览一路拆开讲：十层爆炸图、走时轮系的齿数比（80/10 × 75/10 = 60）、擒纵的慢放、陀飞轮为什么要转圈、日历和月相怎么每天推一格（59 齿两个月亮，29.5 天一轮）。指针走的是真实时间，月相是今晚真实的月亮。
 
+## red-thread-town：红线小镇
+
+一座有 26 个居民的小镇（A 到 Z，每人长相、职业、性格、兴趣都不一样），有大楼、街道、出租车和私家车。每个人有自己的一天：起床、走路或打车上班、吃午饭、下班去健身/看电影/遛狗，晚上回家睡觉。你是月老：打开摄像头，用拇指和食指捏住一个小人，再捏另一个，两人之间就系上红线（也可以用鼠标或手指点）。之后他们会打电话、约时间、去咖啡馆或游乐园约会，对话由剧本和性格生成，好感会涨会跌，可能暧昧、表白、结婚，也可能吵架、分手，红线断掉后可以重新牵。导演镜头会自动切镜头、推近景、打电话时分屏。摄像头画面只在本机识别，不上传。
+
 ## zuoyou-hubo：Two Hands（左右互搏，英文版）
 
 金庸《射雕英雄传》里老顽童的入门功夫：左手画圆，右手画方。整个页面是英文的，画面是一台折叠屏手机，轻触后像功夫秘籍一样展开，先播三幕水墨小动画讲故事（山洞里困了十五年、两手一圆一方、练成后一人当两人用），再到开始页，左页有师父示范「一手画圆、一手画方」。打开摄像头后，书页上能看到你的脸和手，用食指在空中画；也可以两根手指直接在屏幕上画。练功时手机下方一直有师父在打太极。手机正中有大号倒计时，练满 30 秒后手机合上，外屏显示称号（最高是 The Grandmaster）、几成修为和还要几年成为大侠。摄像头画面只在本机处理，不上传。
@@ -30,3 +34,4 @@
 - 3D 渲染使用 [three.js](https://threejs.org/)（MIT），从 CDN 加载；留声机的声音是一首公版童谣旋律，用 Web Audio 实时合成
 - 左右互搏的手势识别使用 [MediaPipe](https://github.com/google-ai-edge/mediapipe)（Apache License 2.0）的手部模型，文件放在 `zuoyou-hubo/vendor/`，许可证见 `zuoyou-hubo/vendor/LICENSE-mediapipe.txt`；页面内嵌的字体（Cormorant Garamond、EB Garamond、Caveat Brush、马善政楷书）均为 SIL Open Font License，见 `zuoyou-hubo/LICENSE-fonts.txt`
 - 机械表内嵌的字体（思源宋体、IBM Plex Mono）均为 SIL Open Font License，见 `watch/LICENSE-fonts.txt`
+- 红线小镇的手势识别同样使用 MediaPipe 手部模型，文件放在 `red-thread-town/vendor/`，许可证见 `red-thread-town/vendor/LICENSE-mediapipe.txt`；声音用 Web Audio 实时合成
