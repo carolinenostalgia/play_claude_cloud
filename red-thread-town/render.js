@@ -324,7 +324,7 @@ function drawPerson(c, a, x, y, o = {}) {
   if (bot.t === 'overalls') { c.fillStyle = bot.c; c.fillRect(-tw + 1, shY + 4, tw * 2 - 2, torL - 3); c.fillRect(-tw + 1.3, shY, 1.2, 4); c.fillRect(tw - 2.5, shY, 1.2, 4); }
   if (bot.t === 'pants' || bot.t === 'shorts') { c.fillStyle = bot.c; c.fillRect(-tw, hipY - 1.5, tw * 2, 2.5); }
   // 胸口字母
-  if (o.zoom > 1.7 && !dress) { c.save(); if (o.facing < 0) c.scale(-1, 1); c.fillStyle = 'rgba(255,255,255,.9)'; c.font = 'bold 5px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = 1; c.strokeText(a.id, 0, shY + torL * 0.55); c.fillText(a.id, 0, shY + torL * 0.55); c.restore(); }
+  if (o.zoom > 1.7 && !dress && a.main) { c.save(); if (o.facing < 0) c.scale(-1, 1); c.fillStyle = 'rgba(255,255,255,.9)'; c.font = 'bold 5px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = 1; c.strokeText(a.id, 0, shY + torL * 0.55); c.fillText(a.id, 0, shY + torL * 0.55); c.restore(); }
   if (acc.includes('tattoo')) { c.fillStyle = '#1e3a5f'; c.fillRect(tw - 0.5, shY + 3, 1.2, 3); }
   if (acc.includes('scarf')) { c.fillStyle = '#e76f51'; c.fillRect(-tw + 0.5, shY - 0.5, tw * 2 - 1, 2.2); c.fillRect(1, shY, 1.8, 6); }
   // 胳膊
@@ -455,9 +455,33 @@ function drawCar(c, car) {
 let hitTargets = [], viewsNow = [];
 function w2s(v, p) { return { x: v.x + v.w / 2 + (p.x - v.cam.x) * v.cam.z, y: v.y + v.h / 2 + (p.y - v.cam.y) * v.cam.z }; }
 function s2w(v, sx, sy) { return { x: v.cam.x + (sx - v.x - v.w / 2) / v.cam.z, y: v.cam.y + (sy - v.y - v.h / 2) / v.cam.z }; }
+// Where someone inside a building shows up: their own floor's window in an apartment block, otherwise on the wall
+function insideSpot(a, L) {
+  if (L.type === 'apartment' && L.windows && L.windows.length) {
+    L.units = L.units || {};
+    if (!L.units[a.id]) {
+      const rows = [...new Set(L.windows.map(w => w.y))].sort((p, q) => p - q);   // top floor first
+      const partner = a.partner && L.units[a.partner.id] && a.couple && a.couple.together ? L.units[a.partner.id] : null;
+      let row;
+      if (partner) row = partner.row;
+      else {
+        const used = Object.values(L.units).map(u => u.row);
+        const free = rows.map((_, i) => i).filter(i => i < rows.length - 1 && !used.includes(i));
+        row = free.length ? free[(a.id.charCodeAt(0) * 7) % free.length] : (a.id.charCodeAt(0) % (rows.length - 1));
+      }
+      const ws = L.windows.filter(w => w.y === rows[row]);
+      const taken = Object.values(L.units).filter(u => u.row === row).map(u => u.w);
+      const w = ws.find((x, i) => !taken.includes(x) && i === (a.id.charCodeAt(0) * 3) % ws.length) || ws.find(x => !taken.includes(x)) || ws[0];
+      L.units[a.id] = { row, w, floor: rows.length - row };
+    }
+    const u = L.units[a.id];
+    return { x: u.w.x + u.w.w / 2, y: u.w.y + u.w.h / 2, floor: u.floor };
+  }
+  return { x: L.door.y > L.center.y ? L.door.x : L.x + L.w / 2, y: L.y + L.h - L.wallH * 0.55, stack: true };
+}
 function threadAnchor(a) {
   if (a.inCar) { const p = a.inCar.lanePos(); return { x: p.x, y: p.y - 4 }; }
-  if (a.hidden && a.at && LOC[a.at] && LOC[a.at].x !== undefined) { const L = LOC[a.at]; return { x: L.x + L.w / 2, y: L.y + 6 }; }
+  if (a.hidden && a.at && LOC[a.at] && LOC[a.at].x !== undefined) { const s = insideSpot(a, LOC[a.at]); return { x: s.x, y: s.y }; }
   return { x: a.x, y: a.y - 16 * (a.look.h || 1) };
 }
 
@@ -493,6 +517,8 @@ function renderView(v) {
     objs.push({ y: a.y, f: () => drawPerson(c, a, a.x, a.y, { pose, moving: a.moving, phase: a.phase, facing: a.facing, bike, phone: a.onPhone, talk: a.bubble && a.bubble.kind !== 'think', zoom: z }) });
     if (a.dog) objs.push({ y: a.dog.y, f: () => drawDog(c, a.dog, a.facing) });
   }
+  const rb = G.robber;
+  if (rb && inB(rb.x, rb.y, 40)) objs.push({ y: rb.y, f: () => drawPerson(c, { look: rb.look, id: '' }, rb.x, rb.y, { pose: rb.caught ? 'stand' : 'run', moving: !rb.caught, phase: rb.phase, facing: rb.facing, zoom: 0 }) });
   objs.sort((p, q) => p.y - q.y);
   for (const o of objs) o.f();
   // 红线
@@ -556,7 +582,7 @@ function renderView(v) {
 function litCouple(cp) {
   const f = Director.focusSet(), sel = UI.pending && UI.pending.agent;
   for (const p of [cp.a, cp.b]) if (f.has(p) || UI.hovered.has(p) || p === sel) return true;
-  return G.couples.length <= 2;
+  return false;
 }
 function drawThreads(c, z) {
   const t = G.realT;
@@ -565,15 +591,17 @@ function drawThreads(c, z) {
     const bind = (G.binds || []).find(b => b.c === cp);
     const prog = bind ? clamp(bind.t / 1.1, 0, 1) : 1;
     const d = dist(A, Bp), mx = (A.x + Bp.x) / 2, my = (A.y + Bp.y) / 2 + Math.min(70, d * 0.16) + Math.sin(t * 1.4 + cp.id) * 5;
-    const lit = litCouple(cp) || bind;
-    const width = (lit ? 1.6 + cp.stage * 0.6 : 0.9) / z;
-    c.strokeStyle = lit ? (cp.stage >= 3 ? 'rgba(255,40,90,.95)' : 'rgba(225,25,45,.85)') : 'rgba(225,25,45,.16)';
-    c.lineWidth = Math.max(width, 0.4); c.lineCap = 'round';
-    c.shadowColor = 'rgba(255,40,60,.7)'; c.shadowBlur = lit ? 6 : 0;
+    const lit = litCouple(cp) || bind, m = cp.mood();
+    const width = (lit ? 3.2 + cp.stage * 0.5 : 2.2) / z;
+    c.strokeStyle = m === 'sweet' ? '#ff2d6f' : m === 'sour' ? '#7d1d3a' : '#e0213f';
+    c.lineWidth = Math.max(width, 0.6); c.lineCap = 'round';
+    c.setLineDash(m === 'sour' ? [7 / z, 5 / z] : []);
+    c.shadowColor = 'rgba(255,40,80,.85)'; c.shadowBlur = lit ? 10 : 0;
     c.beginPath(); c.moveTo(A.x, A.y);
     const N = 26;
     for (let i = 1; i <= N * prog; i++) { const u = i / N; c.lineTo((1 - u) * (1 - u) * A.x + 2 * u * (1 - u) * mx + u * u * Bp.x, (1 - u) * (1 - u) * A.y + 2 * u * (1 - u) * my + u * u * Bp.y); }
-    c.stroke(); c.shadowBlur = 0;
+    c.stroke(); c.shadowBlur = 0; c.setLineDash([]);
+    cp.mid = { x: 0.25 * A.x + 0.5 * mx + 0.25 * Bp.x, y: 0.25 * A.y + 0.5 * my + 0.25 * Bp.y };
     if (prog >= 1 && d < 90 && cp.stage >= 1 && Math.random() < 0.03) G.hearts.push({ x: mx, y: my - 20, vx: rand(-6, 6), vy: -rand(14, 24), t: 0, life: 1.6 });
   }
   for (const s of G.snaps) {
@@ -590,10 +618,10 @@ function drawThreads(c, z) {
 function badgePos(v, a) {
   if (a.inCar) { const p = w2s(v, a.inCar.lanePos()); return { x: p.x + (a.driving ? -7 : 7) * Math.min(1, v.cam.z), y: p.y - 12 - 6 * v.cam.z }; }
   if (a.hidden && a.at && LOC[a.at] && LOC[a.at].x !== undefined) {
-    const L = LOC[a.at], list = [...L.inside].sort((p, q) => p.id < q.id ? -1 : 1), i = list.indexOf(a);
-    const base = w2s(v, { x: L.x + L.w / 2, y: L.y + 4 });
-    const per = Math.max(4, Math.floor(L.w * v.cam.z / 20)), row = Math.floor(i / per), col = i % per, cnt = Math.min(per, list.length - row * per);
-    return { x: base.x + (col - (cnt - 1) / 2) * 19, y: base.y + 10 + row * 19, inside: true };
+    const L = LOC[a.at], s = insideSpot(a, L), base = w2s(v, s);
+    if (!s.stack) return { x: base.x, y: base.y, inside: true, floor: s.floor };
+    const list = [...L.inside].filter(p => p.main).sort((p, q) => p.id < q.id ? -1 : 1), i = list.indexOf(a);
+    return { x: base.x + (i - (list.length - 1) / 2) * 21, y: base.y, inside: true };
   }
   const p = w2s(v, { x: a.x, y: a.y - 31 * (a.look.h || 1) - (a.look.hat ? 5 : 0) });
   return { x: p.x, y: p.y - 9 };
@@ -603,20 +631,23 @@ function drawLabels(c, v) {
   const showNames = z > fz * 3.2;
   const focusSet = Director.focusSet();
   const marks = [];
+  const talkers = [];
   for (const a of G.agents) {
+    if (!a.main) {
+      if (a.bubble && !a.hidden && !a.inCar) { const p = w2s(v, { x: a.x, y: a.y - 31 * (a.look.h || 1) - (a.look.hat ? 5 : 0) }); if (p.x > v.x && p.x < v.x + v.w && p.y > v.y && p.y < v.y + v.h) talkers.push({ a, p }); }
+      continue;
+    }
     const p = badgePos(v, a);
     if (p.x < v.x - 30 || p.x > v.x + v.w + 30 || p.y < v.y - 30 || p.y > v.y + v.h + 30) continue;
     marks.push({ a, p });
   }
-  // 建筑里有人：小标题
-  for (const L of BUILDINGS) {
-    if (!L.inside.size) continue;
-    const b = w2s(v, { x: L.x + L.w / 2, y: L.y + 4 });
-    if (b.x < v.x - 60 || b.x > v.x + v.w + 60 || b.y < v.y - 60 || b.y > v.y + v.h + 60) continue;
-    c.fillStyle = 'rgba(0,0,0,.35)';
-    const per = Math.max(4, Math.floor(L.w * z / 20)), n = Math.min(per, L.inside.size), rows = Math.ceil(L.inside.size / per);
-    rr(c, b.x - n * 9.5 - 4, b.y - 2, n * 19 + 8, rows * 19 + 4, 10); c.fill();
+  // The thief gets a red tag so you can follow the chase
+  if (G.robber && !G.robber.caught) {
+    const q = w2s(v, { x: G.robber.x, y: G.robber.y - 36 });
+    c.font = '900 11px "Nunito","Segoe UI",system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = '#d00000'; rr(c, q.x - 24, q.y - 8, 48, 16, 8); c.fill(); c.fillStyle = '#fff'; c.fillText('🦹 THIEF', q.x, q.y + 0.5);
   }
+  // Someone at home in an apartment: light up their window and show the floor
   const r = clamp(7 + z * 1.6, 8.5, 12);
   const sel = UI.pending ? UI.pending.agent : null;
   for (const { a, p } of marks) {
@@ -628,7 +659,12 @@ function drawLabels(c, v) {
     c.fillStyle = '#fff'; c.font = `900 ${Math.round(R * 1.15)}px "Arial Black",Arial,sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillText(a.id, p.x, p.y + 0.5);
     if (a.partner) { c.font = `${Math.round(R * 0.9)}px sans-serif`; c.fillText(a.couple && a.couple.stage >= 2 ? '❤️' : '🧶', p.x + R * 0.95, p.y - R * 0.8); }
-    if (a.couple && !p.inside) drawHeartMeter(c, p.x, p.y - R - 10, a.couple);
+    if (a.couple && !p.inside) {
+      // Partners standing together share one meter between them
+      const op = marks.find(m => m.a === a.partner), near = op && !op.p.inside && Math.hypot(op.p.x - p.x, op.p.y - p.y) < 80;
+      if (!near) drawHeartMeter(c, p.x, p.y - R - 10, a.couple);
+      else if (a === a.couple.a) drawHeartMeter(c, (p.x + op.p.x) / 2, Math.min(p.y, op.p.y) - R - 10, a.couple);
+    }
     if (a.goal && a.goal.act === 'sleep' && a.hidden) { c.font = `${Math.round(R * 0.8)}px sans-serif`; c.fillStyle = '#fff'; c.fillText('z', p.x - R, p.y - R); }
     if ((showNames || foc || hov) && !p.inside) {
       c.font = `600 11px "Nunito","Segoe UI",system-ui,sans-serif`;
@@ -636,8 +672,31 @@ function drawLabels(c, v) {
       c.fillStyle = 'rgba(20,20,30,.72)'; rr(c, p.x + R + 3, p.y - 8, tw + 10, 16, 8); c.fill();
       c.fillStyle = '#fff'; c.textAlign = 'left'; c.fillText(a.name, p.x + R + 8, p.y + 0.5);
     }
+    if (p.floor) {
+      c.font = '800 10px "Nunito","Segoe UI",system-ui,sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle';
+      const t = `${p.floor}F`, tw = c.measureText(t).width;
+      c.fillStyle = 'rgba(20,20,30,.75)'; rr(c, p.x + R + 2, p.y - 7, tw + 8, 14, 7); c.fill();
+      c.fillStyle = '#fff'; c.fillText(t, p.x + R + 6, p.y + 0.5);
+    }
     hitTargets.push({ a, x: p.x, y: p.y, r: R + 10, v });
     a._bp = a._bp || {}; a._bp[v.key] = p;
+  }
+  // Each red thread gets a small "A ❤ M" tag at its middle when the view is wide
+  const tags = [];
+  for (const cp of G.couples) {
+    if (!cp.mid || (z > fz * 2.6 && !litCouple(cp))) continue;
+    const q = w2s(v, cp.mid);
+    while (tags.some(t => Math.abs(t.x - q.x) < 44 && Math.abs(t.y - q.y) < 17)) q.y += 18;   // two couples between the same buildings
+    tags.push(q);
+    if (q.x < v.x - 40 || q.x > v.x + v.w + 40 || q.y < v.y - 20 || q.y > v.y + v.h + 20) continue;
+    const m = cp.mood(), mid = m === 'sour' ? '💔' : '❤', parts = [[cp.a.id, cp.a.color], [` ${mid} `, m === 'sour' ? '#9aa0ac' : '#ff2d6f'], [cp.b.id, cp.b.color]];
+    c.font = '900 11px "Nunito","Segoe UI",system-ui,sans-serif';
+    const tw = parts.reduce((s, [t]) => s + c.measureText(t).width, 0);
+    c.fillStyle = m === 'sour' ? 'rgba(45,48,56,.88)' : 'rgba(255,255,255,.92)';
+    rr(c, q.x - tw / 2 - 6, q.y - 8, tw + 12, 16, 8); c.fill();
+    c.strokeStyle = m === 'sour' ? '#7d1d3a' : '#ff2d6f'; c.lineWidth = 1.2; c.stroke();
+    let tx = q.x - tw / 2; c.textAlign = 'left'; c.textBaseline = 'middle';
+    for (const [t, col] of parts) { c.fillStyle = m === 'sour' && t.length === 1 ? nameOnDark(col) : col; c.fillText(t, tx, q.y + 0.5); tx += c.measureText(t).width; }
   }
   // 漂浮数字
   for (const f of G.floats) {
@@ -657,6 +716,7 @@ function drawLabels(c, v) {
     if (!scene && !(z > fz * 2.4 || focusSet.has(a) || UI.hovered.has(a))) continue;
     drawBubble(c, p.x, p.y - r - 6 - (a.couple && !p.inside ? 16 : 0), b.text, b, a);
   }
+  for (const { a, p } of talkers) if (z > fz * 2.4) drawBubble(c, p.x, p.y - 4, a.bubble.text, a.bubble, a);
 }
 // Wrap at spaces; a word longer than the line is broken by character
 // Five hearts for how the couple feels: full in the honeymoon, emptier as they sour
@@ -672,6 +732,8 @@ function drawHeartMeter(c, x, y, cp) {
   }
   c.restore();
 }
+// Agent colors are mid-tone; lift them so names stay readable on a dark bubble
+function nameOnDark(col) { return col.replace(/(\d+)%\)$/, (m, l) => `${Math.max(+l, 72)}%)`); }
 function wrapText(c, text, maxW) {
   const out = []; let line = '';
   for (const word of text.split(' ')) {
@@ -689,9 +751,11 @@ function wrapText(c, text, maxW) {
 function drawBubble(c, x, y, text, b, a) {
   const think = b.kind === 'think';
   // Header: who is speaking, and to whom
-  const head = [[(b.kind === 'phone' ? '📞 ' : b.kind === 'text' ? '📱 ' : '') + `${a.id} ${a.name}`, a.color]];
-  if (b.to) head.push([' to ', '#8a8a96'], [`${b.to.id} ${b.to.name}`, b.to.color]);
-  else if (think) head.push([' (thinking)', '#8a8a96']);
+  // Tone: happy lines get a pink bubble, unhappy ones a dark grey bubble
+  const tone = b.tone || 'neutral', sad = tone === 'sad', happy = tone === 'happy';
+  const head = [[(b.kind === 'phone' ? '📞 ' : b.kind === 'text' ? '📱 ' : '') + `${a.id} ${a.name}`, sad ? nameOnDark(a.color) : a.color]];
+  if (b.to) head.push([' to ', sad ? '#b9bcc6' : '#8a8a96'], [`${b.to.id} ${b.to.name}`, sad ? nameOnDark(b.to.color) : b.to.color]);
+  else if (think) head.push([' (thinking)', sad ? '#b9bcc6' : '#8a8a96']);
   c.font = '800 11px "Nunito","Segoe UI",system-ui,sans-serif';
   const headW = head.reduce((s, [t]) => s + c.measureText(t).width, 0);
   c.font = `${think ? 400 : 600} 13px "Nunito","Segoe UI",system-ui,sans-serif`;
@@ -699,9 +763,9 @@ function drawBubble(c, x, y, text, b, a) {
   const w = Math.max(headW, ...lines.map(l => c.measureText(l).width)) + 18, h = lines.length * lh + 10 + hh;
   const fade = clamp(Math.min(b.t / 0.15, (b.dur - b.t) / 0.3), 0, 1);
   const bx = clamp(x - w / 2, 4, SW_ - w - 4), by = y - h - 8;
-  c.globalAlpha = fade * (think ? 0.88 : 1);
-  c.fillStyle = think ? '#f4f6fb' : b.kind === 'phone' ? '#e8fff1' : b.kind === 'text' ? '#eaf4ff' : '#fff';
-  c.strokeStyle = think ? 'rgba(0,0,0,.18)' : a.color; c.lineWidth = think ? 1 : 2;
+  c.globalAlpha = fade * (think ? 0.92 : 1);
+  c.fillStyle = sad ? (think ? '#5a5f6a' : '#3d424c') : happy ? (think ? '#fff0f5' : '#ffdde8') : think ? '#f4f6fb' : b.kind === 'phone' ? '#e8fff1' : b.kind === 'text' ? '#eaf4ff' : '#fff';
+  c.strokeStyle = sad ? '#1f2228' : happy ? '#ff5c8a' : think ? 'rgba(0,0,0,.18)' : a.color; c.lineWidth = think && !sad && !happy ? 1 : 2;
   rr(c, bx, by, w, h, think ? 12 : 9); c.fill(); c.stroke();
   if (think) { circ(c, x - 3, by + h + 4, 3); c.fill(); c.stroke(); circ(c, x - 6, by + h + 10, 1.8); c.fill(); }
   else { c.beginPath(); c.moveTo(x - 6, by + h - 1); c.lineTo(x, by + h + 8); c.lineTo(x + 5, by + h - 1); c.closePath(); c.fill(); c.beginPath(); c.moveTo(x - 6, by + h); c.lineTo(x, by + h + 8); c.lineTo(x + 5, by + h); c.stroke(); }
@@ -710,8 +774,9 @@ function drawBubble(c, x, y, text, b, a) {
   let hx = bx + 9;
   for (const [t, col] of head) { c.fillStyle = col; c.fillText(t, hx, by + 6); hx += c.measureText(t).width; }
   c.font = `${think ? 400 : 600} 13px "Nunito","Segoe UI",system-ui,sans-serif`;
-  c.fillStyle = think ? '#555' : '#1d1d28';
+  c.fillStyle = sad ? '#f3f3f6' : happy ? '#5c1230' : think ? '#555' : '#1d1d28';
   lines.forEach((l, i) => c.fillText(l, bx + 9, by + 6 + hh + i * lh));
+  if (!think && (sad || happy)) { c.font = '13px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(sad ? '💢' : '💗', bx + w - 2, by + 2); }
   c.textBaseline = 'middle'; c.globalAlpha = 1;
 }
 function fitZoom(v) { return Math.min(v.w / (WORLD_W + 40), v.h / (WORLD_H + 40)); }
