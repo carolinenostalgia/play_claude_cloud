@@ -544,7 +544,7 @@ function storyTick(now) {
   [...$('storyDots').children].forEach((d, i) => { d.innerHTML = `<b style="width:${clamp((t - i * SCENE_MS) / SCENE_MS) * 100}%"></b>`; });
   drawScene(storyCtx, k, t - k * SCENE_MS);
 }
-function startStory() { state = 'story'; storyStart = performance.now(); storyScene = -1; spread('story'); say('The legend of Two-Handed Combat'); }
+function startStory() { if (navigator.mediaDevices) loadModel(); state = 'story'; storyStart = performance.now(); storyScene = -1; spread('story'); say('The legend of Two-Handed Combat'); }
 function endStory() { state = 'intro'; spread('intro'); say('Your turn: thirty seconds'); }
 
 /* ---------- phone pose: fold angle, tilt, and the slide that keeps the closed phone centered ---------- */
@@ -590,20 +590,45 @@ $('goTouch').addEventListener('click', () => { mode = 'touch'; startReady(); });
 /* ---------- input: camera hands or two fingers ---------- */
 const video = $('cam');
 let landmarker = null, camReady = false;
+// The hand model (~20 MB) downloads in the background from the moment the story starts, with
+// progress, so the camera picture can show straight away and drawing starts as soon as it's ready.
+const WASM_URL = new URL('vendor/wasm/vision_wasm_internal.wasm', location.href).href;
+const MODEL_URL = new URL('vendor/hand_landmarker.task', location.href).href;
+const MODEL_BYTES = 12997248 + 7819105;
+let modelPromise = null, loaded = 0;
+async function fetchWithProgress(url) {
+  const r = await fetch(url);
+  if (!r.ok || !r.body) return r.arrayBuffer();
+  const reader = r.body.getReader(), parts = [];
+  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); loaded += value.length; }
+  return new Blob(parts).arrayBuffer();
+}
+function loadModel() {
+  if (modelPromise) return modelPromise;
+  loaded = 0;
+  modelPromise = (async () => {
+    const [model, mp, wasm] = await Promise.all([fetchWithProgress(MODEL_URL), import('./vendor/vision_bundle.mjs'), fetchWithProgress(WASM_URL)]);
+    // Hand MediaPipe the engine we already downloaded (as a blob URL) so it isn't fetched twice.
+    const wasmBlobUrl = URL.createObjectURL(new Blob([wasm], { type: 'application/wasm' }));
+    const files = { wasmLoaderPath: new URL('vendor/wasm/vision_wasm_internal.js', location.href).href, wasmBinaryPath: wasmBlobUrl };
+    const opts = d => ({ baseOptions: { modelAssetBuffer: new Uint8Array(model), delegate: d },
+                         runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: .5, minTrackingConfidence: .5 });
+    try { return await mp.HandLandmarker.createFromOptions(files, opts('GPU')); }
+    catch { return await mp.HandLandmarker.createFromOptions(files, opts('CPU')); }
+  })();
+  modelPromise.catch(() => { modelPromise = null; });
+  return modelPromise;
+}
+const phoneLike = matchMedia('(pointer: coarse)').matches;
 async function startCamera() {
   if (camReady) return;
-  prompt('Loading the manual…<small>About 20 MB the first time</small>');
-  const [stream, mp] = await Promise.all([
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
-    import('./vendor/vision_bundle.mjs'),
-  ]);
-  video.srcObject = stream; await video.play();
-  const files = { wasmLoaderPath: new URL('vendor/wasm/vision_wasm_internal.js', location.href).href,
-                  wasmBinaryPath: new URL('vendor/wasm/vision_wasm_internal.wasm', location.href).href };
-  const opts = d => ({ baseOptions: { modelAssetPath: new URL('vendor/hand_landmarker.task', location.href).href, delegate: d },
-                       runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: .5, minTrackingConfidence: .5 });
-  try { landmarker = await mp.HandLandmarker.createFromOptions(files, opts('GPU')); }
-  catch { landmarker = await mp.HandLandmarker.createFromOptions(files, opts('CPU')); }
+  if (!video.srcObject) {
+    prompt('Opening the camera…');
+    const size = phoneLike ? { width: { ideal: 640 }, height: { ideal: 480 } } : { width: { ideal: 1280 }, height: { ideal: 720 } };
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', ...size }, audio: false });
+    await video.play();
+  }
+  landmarker = await loadModel();
   camReady = true;
 }
 
@@ -655,7 +680,7 @@ function readHands(now) {
   }
 }
 function drawVideo() {
-  if (!camReady || video.readyState < 2) return;
+  if (!video.srcObject || video.readyState < 2) return;
   const m = coverMap();
   ctxVid.forEach((g, i) => {
     const c = g.canvas;
@@ -775,6 +800,11 @@ function begin(now) {
   prompt(''); caption.style.opacity = 1;
 }
 function tick(now) {
+  if (state === 'ready' && mode === 'cam' && !camReady && video.srcObject) {
+    const pct = Math.min(99, Math.floor(loaded / MODEL_BYTES * 100));
+    const html = pct < 99 ? `Loading the manual… ${pct}%<small>About 20 MB the first time, then it’s saved</small>` : 'Almost ready…<small>Waking up the master</small>';
+    if ($('promptL').innerHTML !== html) prompt(html);
+  }
   if (state === 'ready') {
     if (tips[0] && tips[1]) { if (!readySince) readySince = now; } else readySince = 0;
     if (readySince && now - readySince > 600) { state = 'count'; countStart = now; say('Steady your breath…'); }
